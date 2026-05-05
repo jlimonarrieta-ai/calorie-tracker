@@ -5,6 +5,7 @@
 // shape that's easy to render and to persist in our `food_entries` table.
 
 const BASE = "https://world.openfoodfacts.org";
+const KJ_PER_KCAL = 4.184;
 
 export type FoodItem = {
   externalId: string;
@@ -30,11 +31,11 @@ type OFFProduct = {
   image_thumb_url?: string;
   serving_quantity?: string | number;
   nutriments?: {
-    "energy-kcal_100g"?: number;
-    "energy_100g"?: number;
-    "proteins_100g"?: number;
-    "carbohydrates_100g"?: number;
-    "fat_100g"?: number;
+    "energy-kcal_100g"?: number | string;
+    energy_100g?: number | string;
+    proteins_100g?: number | string;
+    carbohydrates_100g?: number | string;
+    fat_100g?: number | string;
   };
 };
 
@@ -48,12 +49,29 @@ function toNumber(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+// For nutrition fields we never expect negatives; clamp to null instead of
+// trusting bad data from the upstream API.
+function toNonNegative(v: unknown): number | null {
+  const n = toNumber(v);
+  if (n === null) return null;
+  return n >= 0 ? n : null;
+}
+
+function pickKcal(n: NonNullable<OFFProduct["nutriments"]>): number | null {
+  const direct = toNonNegative(n["energy-kcal_100g"]);
+  if (direct !== null) return direct;
+  // Fallback: many products only report `energy_100g` in kJ.
+  const kj = toNonNegative(n.energy_100g);
+  if (kj === null) return null;
+  return kj / KJ_PER_KCAL;
+}
+
 function normalize(p: OFFProduct): FoodItem | null {
   const name = pickName(p);
   if (!name || !p.code) return null;
 
   const n = p.nutriments ?? {};
-  const kcal = toNumber(n["energy-kcal_100g"]);
+  const kcal = pickKcal(n);
   if (kcal === null) return null;
 
   return {
@@ -61,12 +79,12 @@ function normalize(p: OFFProduct): FoodItem | null {
     name,
     brand: p.brands?.split(",")[0]?.trim() || null,
     imageUrl: p.image_small_url || p.image_thumb_url || null,
-    servingSizeGrams: toNumber(p.serving_quantity),
+    servingSizeGrams: toNonNegative(p.serving_quantity),
     per100g: {
       calories: kcal,
-      proteinG: toNumber(n["proteins_100g"]),
-      carbsG: toNumber(n["carbohydrates_100g"]),
-      fatG: toNumber(n["fat_100g"]),
+      proteinG: toNonNegative(n.proteins_100g),
+      carbsG: toNonNegative(n.carbohydrates_100g),
+      fatG: toNonNegative(n.fat_100g),
     },
   };
 }
@@ -89,14 +107,19 @@ export async function searchFoods(query: string, signal?: AbortSignal): Promise<
 
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`OFF search failed: ${res.status}`);
-  const data = (await res.json()) as { products?: OFFProduct[] };
+  const data = (await res.json()) as { products?: unknown };
 
-  return (data.products ?? []).map(normalize).filter((x): x is FoodItem => x !== null);
+  if (!Array.isArray(data.products)) return [];
+  return (data.products as OFFProduct[])
+    .map(normalize)
+    .filter((x): x is FoodItem => x !== null);
 }
 
-// Compute calories + macros for a given gram amount based on per-100g values
+// Compute calories + macros for a given gram amount based on per-100g values.
+// Negative or non-finite grams clamp to 0 so we never persist bad numbers.
 export function computeMacros(item: FoodItem, grams: number) {
-  const factor = grams / 100;
+  const safeGrams = Number.isFinite(grams) && grams > 0 ? grams : 0;
+  const factor = safeGrams / 100;
   return {
     calories: round1(item.per100g.calories * factor),
     proteinG: item.per100g.proteinG !== null ? round1(item.per100g.proteinG * factor) : null,

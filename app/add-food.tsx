@@ -29,9 +29,14 @@ export default function AddFood() {
 
   const userId = session?.user.id;
 
+  function handleSelect(item: FoodItem) {
+    setSelected(item);
+    // Default to the product's known serving size when available; otherwise 100g.
+    setGrams(String(item.servingSizeGrams ?? 100));
+  }
+
   async function handleSave() {
-    if (!userId) return;
-    if (!selected) return;
+    if (!userId || !selected || submitting) return;
     const g = Number(grams);
     if (!Number.isFinite(g) || g <= 0) {
       Alert.alert("Cantidad inválida", "Ingresa los gramos consumidos.");
@@ -62,6 +67,7 @@ export default function AddFood() {
               value={grams}
               onChangeText={setGrams}
               autoFocus
+              accessibilityLabel="Cantidad en gramos"
             />
 
             <View className="bg-gray-50 rounded-lg p-4 mb-6">
@@ -75,13 +81,21 @@ export default function AddFood() {
               className="bg-black rounded-lg py-4 items-center"
               onPress={handleSave}
               disabled={submitting}
+              accessibilityRole="button"
+              accessibilityLabel="Guardar comida"
+              accessibilityState={{ disabled: submitting, busy: submitting }}
             >
               <Text className="text-white font-semibold">
                 {submitting ? "Guardando..." : "Guardar"}
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity className="mt-3 items-center" onPress={() => setSelected(null)}>
+            <TouchableOpacity
+              className="mt-3 items-center"
+              onPress={() => setSelected(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Cambiar selección de comida"
+            >
               <Text className="text-gray-600">Cambiar selección</Text>
             </TouchableOpacity>
           </View>
@@ -101,6 +115,7 @@ export default function AddFood() {
           onChangeText={setQuery}
           autoFocus
           autoCapitalize="none"
+          accessibilityLabel="Buscar alimento"
         />
         {loading && <ActivityIndicator className="my-2" />}
         {error && <Text className="text-red-500 text-sm">{error}</Text>}
@@ -119,7 +134,12 @@ export default function AddFood() {
         renderItem={({ item }) => (
           <TouchableOpacity
             className="flex-row py-3 border-b border-gray-100"
-            onPress={() => setSelected(item)}
+            onPress={() => handleSelect(item)}
+            accessibilityRole="button"
+            accessibilityLabel={
+              `${item.name}${item.brand ? `, ${item.brand}` : ""}, ` +
+              `${Math.round(item.per100g.calories)} kcal por 100 gramos`
+            }
           >
             {item.imageUrl ? (
               <Image source={{ uri: item.imageUrl }} className="w-12 h-12 rounded mr-3" />
@@ -136,7 +156,7 @@ export default function AddFood() {
                 </Text>
               )}
               <Text className="text-gray-600 text-xs mt-0.5">
-                {item.per100g.calories} kcal / 100g
+                {Math.round(item.per100g.calories)} kcal / 100g
               </Text>
             </View>
           </TouchableOpacity>

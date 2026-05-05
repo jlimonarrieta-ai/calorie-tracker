@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
 import { FoodEntry } from "../../types/database";
 
@@ -18,26 +18,56 @@ export function useTodayEntries(userId: string | undefined) {
   const [entries, setEntries] = useState<FoodEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // requestId guards against stale responses overwriting newer ones,
+  // and against setState after unmount.
+  const requestIdRef = useRef(0);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const refetch = useCallback(async () => {
+    const myId = ++requestIdRef.current;
+
     if (!userId) {
-      setEntries([]);
-      setLoading(false);
+      if (mountedRef.current && myId === requestIdRef.current) {
+        setEntries([]);
+        setLoading(false);
+        setError(null);
+      }
       return;
     }
-    setLoading(true);
-    setError(null);
-    const { data, error } = await supabase
-      .from("food_entries")
-      .select("*")
-      .eq("user_id", userId)
-      .gte("consumed_at", startOfTodayISO())
-      .lte("consumed_at", endOfTodayISO())
-      .order("consumed_at", { ascending: false });
 
-    if (error) setError(error.message);
-    else setEntries((data ?? []) as FoodEntry[]);
-    setLoading(false);
+    if (mountedRef.current) {
+      setLoading(true);
+      setError(null);
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("food_entries")
+        .select("*")
+        .eq("user_id", userId)
+        .gte("consumed_at", startOfTodayISO())
+        .lte("consumed_at", endOfTodayISO())
+        .order("consumed_at", { ascending: false });
+
+      if (!mountedRef.current || myId !== requestIdRef.current) return;
+
+      if (error) setError(error.message);
+      else setEntries((data ?? []) as FoodEntry[]);
+    } catch (e: unknown) {
+      if (!mountedRef.current || myId !== requestIdRef.current) return;
+      setError((e as Error).message);
+    } finally {
+      if (mountedRef.current && myId === requestIdRef.current) {
+        setLoading(false);
+      }
+    }
   }, [userId]);
 
   useEffect(() => {

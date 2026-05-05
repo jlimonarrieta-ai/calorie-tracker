@@ -11,8 +11,10 @@ export function useFoodSearch(query: string) {
 
   useEffect(() => {
     if (query.trim().length < 2) {
+      abortRef.current?.abort();
       setResults([]);
       setLoading(false);
+      setError(null);
       return;
     }
 
@@ -23,11 +25,11 @@ export function useFoodSearch(query: string) {
       abortRef.current = ctrl;
       try {
         const items = await searchFoods(query, ctrl.signal);
-        if (!ctrl.signal.aborted) {
-          setResults(items);
-          setError(null);
-        }
+        if (ctrl.signal.aborted) return;
+        setResults(items);
+        setError(null);
       } catch (e: unknown) {
+        if (ctrl.signal.aborted) return;
         if ((e as Error).name === "AbortError") return;
         setError((e as Error).message);
       } finally {
