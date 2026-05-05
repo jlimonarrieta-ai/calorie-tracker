@@ -42,9 +42,10 @@ export default function AddFood() {
       Alert.alert("Cantidad inválida", "Ingresa los gramos consumidos.");
       return;
     }
-    const ok = await addFromOpenFoodFacts(userId, selected, g);
-    if (ok) router.back();
-    else Alert.alert("Error", "No se pudo guardar la comida.");
+    const result = await addFromOpenFoodFacts(userId, selected, g);
+    if (result === "ok") router.back();
+    else if (result === "error") Alert.alert("Error", "No se pudo guardar la comida.");
+    // "duplicate": ignore — the first save is still in flight or just succeeded.
   }
 
   if (selected) {

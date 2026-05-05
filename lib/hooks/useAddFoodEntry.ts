@@ -10,6 +10,10 @@ export type ManualEntry = {
   fatG?: number | null;
 };
 
+// Tri-state result so a duplicate tap (skipped because another insert is in
+// flight) doesn't get reported to the user as an error.
+export type AddResult = "ok" | "duplicate" | "error";
+
 export function useAddFoodEntry() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,8 +34,18 @@ export function useAddFoodEntry() {
     if (mountedRef.current) setError(v);
   }
 
-  async function addFromOpenFoodFacts(userId: string, item: FoodItem, grams: number) {
-    if (inFlightRef.current) return false;
+  async function addFromOpenFoodFacts(
+    userId: string,
+    item: FoodItem,
+    grams: number
+  ): Promise<AddResult> {
+    if (inFlightRef.current) return "duplicate";
+    // Defensive: even though the UI validates, never persist non-finite or
+    // non-positive grams since this hook may be called from other call sites.
+    if (!Number.isFinite(grams) || grams <= 0) {
+      safeSetError("Cantidad inválida");
+      return "error";
+    }
     inFlightRef.current = true;
     safeSetSubmitting(true);
     safeSetError(null);
@@ -50,20 +64,24 @@ export function useAddFoodEntry() {
       });
       if (error) {
         safeSetError(error.message);
-        return false;
+        return "error";
       }
-      return true;
+      return "ok";
     } catch (e: unknown) {
       safeSetError((e as Error).message);
-      return false;
+      return "error";
     } finally {
       inFlightRef.current = false;
       safeSetSubmitting(false);
     }
   }
 
-  async function addManual(userId: string, entry: ManualEntry) {
-    if (inFlightRef.current) return false;
+  async function addManual(userId: string, entry: ManualEntry): Promise<AddResult> {
+    if (inFlightRef.current) return "duplicate";
+    if (!Number.isFinite(entry.calories) || entry.calories < 0) {
+      safeSetError("Calorías inválidas");
+      return "error";
+    }
     inFlightRef.current = true;
     safeSetSubmitting(true);
     safeSetError(null);
@@ -79,12 +97,12 @@ export function useAddFoodEntry() {
       });
       if (error) {
         safeSetError(error.message);
-        return false;
+        return "error";
       }
-      return true;
+      return "ok";
     } catch (e: unknown) {
       safeSetError((e as Error).message);
-      return false;
+      return "error";
     } finally {
       inFlightRef.current = false;
       safeSetSubmitting(false);
