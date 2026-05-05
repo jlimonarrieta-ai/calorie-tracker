@@ -33,6 +33,10 @@ function RootNavigator() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen
+        name="add-food"
+        options={{ presentation: "modal", headerShown: true, title: "Agregar comida" }}
+      />
     </Stack>
   );
 }
