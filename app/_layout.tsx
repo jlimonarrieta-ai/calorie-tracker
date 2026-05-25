@@ -26,7 +26,14 @@ function RootNavigator() {
     // Wait until we know the onboarding state before routing the signed-in user.
     if (profileLoading) return;
 
-    const needsOnboarding = !profile?.onboarded_at;
+    // Only act on a definitively-fetched profile. If the fetch errored and we
+    // never got the row, profile is null — treat that as "unknown" and stay
+    // put rather than bouncing to /(onboarding), which both wrongly forces
+    // re-onboarding and can fire before the navigator has registered the
+    // route after Fast Refresh.
+    if (profile == null) return;
+
+    const needsOnboarding = !profile.onboarded_at;
 
     if (needsOnboarding && !inOnboardingGroup) {
       router.replace("/(onboarding)");
