@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as Linking from "expo-linking";
 import { supabase } from "../../lib/supabase";
 
 export default function SignIn() {
@@ -15,10 +16,14 @@ export default function SignIn() {
       return;
     }
     setBusy(true);
+    // Resolve to the app's scheme in prod (`caltrack://`) and to the Expo Go
+    // proxy URL in dev. Without this, the Supabase confirmation email points
+    // to localhost and the link is dead.
+    const emailRedirectTo = Linking.createURL("/");
     const { error } =
       mode === "signIn"
         ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password });
+        : await supabase.auth.signUp({ email, password, options: { emailRedirectTo } });
     setBusy(false);
     if (error) Alert.alert("Error", error.message);
     else if (mode === "signUp") {
