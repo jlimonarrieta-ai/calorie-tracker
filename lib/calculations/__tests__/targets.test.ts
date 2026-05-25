@@ -176,7 +176,7 @@ describe("computeTargets", () => {
       expect(macroKcal).toBeLessThanOrEqual(r.dailyKcal);
     });
 
-    it("regression: invariant holds after dailyKcal rounding (Codex round 2 finding)", () => {
+    it("regression — capped path, raw dailyKcal with .4 fraction rounds down", () => {
       // Pre-fix bug: cap ran against unrounded dailyKcal (e.g. 1500.46875)
       // while the returned value was Math.round(...) = 1500. Macros could
       // sum to 1500.3 — passing the cap, breaking the post-round invariant.
@@ -193,6 +193,31 @@ describe("computeTargets", () => {
       );
       expect(r.macrosCapped).toBe(true);
       expect(r.flooredToMinimum).toBe(false);
+
+      const macroKcal = r.proteinG * 4 + r.fatG * 9 + r.carbsG * 4;
+      expect(macroKcal).toBeLessThanOrEqual(r.dailyKcal);
+    });
+
+    it("regression — NON-capped path, raw dailyKcal with .4 fraction rounds down", () => {
+      // Codex round-2 Low: the round-2 fix must also protect the non-capped
+      // path. round1() on protein/fat can push them slightly above the body-
+      // weight value (e.g. 0.9 * 80.5 = 72.45 -> 72.5 adds 0.45 kcal of fat).
+      // Combined with a raw dailyKcal that rounds DOWN (e.g. 2621.44 -> 2621),
+      // pre-fix this produced macros > returned integer goal.
+      // M 80.5kg 165cm 30y moderate maintain → raw 2621.4375, rounds to 2621.
+      const r = computeTargets(
+        build({
+          sex: "male",
+          weightKg: 80.5,
+          heightCm: 165,
+          ageYears: 30,
+          activity: "moderate",
+          targetKgPerWeek: 0,
+        })
+      );
+      expect(r.macrosCapped).toBe(false);
+      expect(r.flooredToMinimum).toBe(false);
+      expect(r.dailyKcal).toBe(2621);
 
       const macroKcal = r.proteinG * 4 + r.fatG * 9 + r.carbsG * 4;
       expect(macroKcal).toBeLessThanOrEqual(r.dailyKcal);
