@@ -145,8 +145,20 @@ export function GoalsForm({
     <KeyboardAvoidingView
       className="flex-1"
       behavior={Platform.OS === "ios" ? "padding" : undefined}
+      // Compensates for the modal's stack header (`edit-goals.tsx` opens this
+      // form inside a modal). On Android the system handles insets.
+      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
     >
-      <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 48 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 24, paddingBottom: 48 }}
+        // `handled` lets a tap on the submit button both dismiss the keyboard
+        // and fire the press in a single tap (otherwise the first tap is
+        // absorbed by the keyboard-dismiss gesture).
+        keyboardShouldPersistTaps="handled"
+        // Lets users swipe down on the form to drag the keyboard away, useful
+        // when the `decimal-pad` keypad on iOS has no "Done" key of its own.
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+      >
         {intro && (
           <View className="mb-6">
             <Text className="text-3xl font-bold mb-1">{intro.title}</Text>
