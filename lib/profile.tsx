@@ -123,7 +123,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           if (mountedRef.current) setError("No se encontró tu perfil.");
           return false;
         }
-        await refetch();
+        // Use the returned row directly. Relying on a follow-up `refetch()`
+        // hid a class of bugs: refetch swallows fetch errors and returns void,
+        // so a transient read failure after a successful UPDATE would leave
+        // local state stale (DB updated, UI sees old `onboarded_at`, layout
+        // would redirect back to onboarding).
+        if (mountedRef.current) setProfile(data[0] as Profile);
         return true;
       } catch (e: unknown) {
         if (mountedRef.current) setError((e as Error).message);
