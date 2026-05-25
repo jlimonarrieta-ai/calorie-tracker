@@ -84,19 +84,23 @@ export function computeTargets(input: TargetInput): TargetOutput {
 
   if (proteinG * 4 > dailyKcal) {
     // Extreme: protein alone exceeds the daily budget. Cap to dailyKcal/4.
-    proteinG = round1(dailyKcal / 4);
+    // Floor rather than round so the invariant `macroKcal <= dailyKcal` holds
+    // strictly — half-up rounding could otherwise push us back over the budget.
+    proteinG = floor1(dailyKcal / 4);
     macrosCapped = true;
   }
 
   const proteinKcal = proteinG * 4;
   const maxFatKcal = Math.max(0, dailyKcal - proteinKcal);
   if (fatG * 9 > maxFatKcal) {
-    fatG = round1(maxFatKcal / 9);
+    fatG = floor1(maxFatKcal / 9);
     macrosCapped = true;
   }
 
+  // Carbs are residual — floor so any rounding remainder is absorbed silently
+  // rather than pushed back into the macro total.
   const carbsKcal = Math.max(0, dailyKcal - proteinKcal - fatG * 9);
-  const carbsG = round1(carbsKcal / 4);
+  const carbsG = floor1(carbsKcal / 4);
 
   return {
     bmr: Math.round(bmr),
@@ -112,4 +116,10 @@ export function computeTargets(input: TargetInput): TargetOutput {
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
+}
+
+// Floor to 1 decimal. Used in macro cap paths to guarantee the macro total
+// never exceeds `dailyKcal` (`round1` can round up and break the invariant).
+function floor1(n: number): number {
+  return Math.floor(n * 10) / 10;
 }
