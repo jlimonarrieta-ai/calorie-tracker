@@ -2,14 +2,11 @@ import { Stack, useRouter } from "expo-router";
 import { Alert, ActivityIndicator, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GoalsForm, GoalsFormValues } from "../components/GoalsForm";
-import { useAuth } from "../lib/auth";
-import { useProfile } from "../lib/hooks/useProfile";
+import { useProfile } from "../lib/profile";
 
 export default function EditGoals() {
   const router = useRouter();
-  const { session } = useAuth();
-  const userId = session?.user.id;
-  const { profile, loading, updateProfile, updating } = useProfile(userId);
+  const { profile, loading, updateProfile, updating } = useProfile();
 
   async function handleSubmit(values: GoalsFormValues) {
     const signedKpw =

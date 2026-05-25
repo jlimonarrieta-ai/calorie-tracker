@@ -4,13 +4,12 @@ import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "../lib/auth";
-import { useProfile } from "../lib/hooks/useProfile";
+import { ProfileProvider, useProfile } from "../lib/profile";
 import "../global.css";
 
 function RootNavigator() {
   const { session, loading } = useAuth();
-  const userId = session?.user.id;
-  const { profile, loading: profileLoading } = useProfile(userId);
+  const { profile, loading: profileLoading } = useProfile();
   const segments = useSegments();
   const router = useRouter();
 
@@ -65,8 +64,10 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <RootNavigator />
-        <StatusBar style="auto" />
+        <ProfileProvider>
+          <RootNavigator />
+          <StatusBar style="auto" />
+        </ProfileProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
