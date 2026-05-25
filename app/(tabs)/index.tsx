@@ -15,8 +15,11 @@ import { es } from "date-fns/locale";
 import { useAuth } from "../../lib/auth";
 import { useTodayEntries } from "../../lib/hooks/useTodayEntries";
 import { useAddFoodEntry } from "../../lib/hooks/useAddFoodEntry";
+import { useProfile } from "../../lib/hooks/useProfile";
 
-const DAILY_GOAL_DEFAULT = 2000;
+// Fallback only — onboarding guarantees `daily_calorie_goal` is set before the
+// user lands here, but we keep a sane default in case the profile read fails.
+const DAILY_GOAL_FALLBACK = 2000;
 
 export default function Today() {
   const router = useRouter();
@@ -24,6 +27,7 @@ export default function Today() {
   const userId = session?.user.id;
   const { entries, loading, error, refetch, totalCalories } = useTodayEntries(userId);
   const { deleteEntry } = useAddFoodEntry();
+  const { profile } = useProfile(userId);
 
   // Refetch whenever the tab comes into focus (e.g. after adding a food)
   useFocusEffect(
@@ -32,7 +36,7 @@ export default function Today() {
     }, [refetch])
   );
 
-  const goal = DAILY_GOAL_DEFAULT;
+  const goal = profile?.daily_calorie_goal ?? DAILY_GOAL_FALLBACK;
   const remaining = Math.max(0, goal - totalCalories);
   const progress = goal > 0 ? Math.min(1, totalCalories / goal) : 0;
 

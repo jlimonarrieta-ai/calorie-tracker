@@ -1,8 +1,28 @@
+export type Sex = "male" | "female" | "other";
+
+export type ActivityLevel =
+  | "sedentary"
+  | "light"
+  | "moderate"
+  | "active"
+  | "very_active";
+
 export type Profile = {
   id: string;
   email: string;
   display_name: string | null;
   daily_calorie_goal: number | null;
+  sex: Sex | null;
+  age_years: number | null;
+  height_cm: number | null;
+  current_weight_kg: number | null;
+  activity_level: ActivityLevel | null;
+  // Signed: negative = lose, positive = gain, 0/null = maintain.
+  target_kg_per_week: number | null;
+  protein_g_target: number | null;
+  carbs_g_target: number | null;
+  fat_g_target: number | null;
+  onboarded_at: string | null;
   created_at: string;
 };
 
