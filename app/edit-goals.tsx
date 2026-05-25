@@ -29,8 +29,15 @@ export default function EditGoals() {
       fat_g_target: values.preview.fatG,
     });
 
-    if (ok) router.back();
-    else Alert.alert("Error", "No se pudo actualizar tu plan. Intenta de nuevo.");
+    if (!ok) {
+      Alert.alert("Error", "No se pudo actualizar tu plan. Intenta de nuevo.");
+      return;
+    }
+    // `router.back()` throws "GO_BACK was not handled" if the modal was opened
+    // without back history (Fast Refresh, deep link, app re-launch into route).
+    // Replacing to (tabs) always succeeds and dismisses the modal.
+    if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)");
   }
 
   if (loading) {
