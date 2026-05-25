@@ -46,6 +46,11 @@ export type TargetOutput = {
   carbsG: number;
   fatG: number;
   flooredToMinimum: boolean;
+  // True when body-weight-based macros had to be reduced so their total kcal
+  // fit within `dailyKcal`. Can happen independent of `flooredToMinimum` for
+  // a heavy user on a moderate deficit (TDEE − deficit can still be below
+  // the body-weight macro budget without triggering the per-sex floor).
+  macrosCapped: boolean;
 };
 
 export function computeTargets(input: TargetInput): TargetOutput {
@@ -68,11 +73,29 @@ export function computeTargets(input: TargetInput): TargetOutput {
   const flooredToMinimum = dailyKcal < floor;
   if (flooredToMinimum) dailyKcal = floor;
 
-  const proteinG = round1(PROTEIN_G_PER_KG * weightKg);
-  const fatG = round1(FAT_G_PER_KG * weightKg);
-  // Remaining kcal after protein + fat go to carbs. Never let carbs go negative
-  // (can happen if floor + high body weight push the macro budget below 0).
-  const carbsKcal = Math.max(0, dailyKcal - proteinG * 4 - fatG * 9);
+  // Body-weight-based defaults, then capped so total macro kcal never exceeds
+  // dailyKcal. Priority: protein > fat > carbs. Clamping carbs to zero alone
+  // (the previous behaviour) silently created targets whose protein+fat kcal
+  // exceeded the daily goal — e.g. 100 kg female floored to 1200 kcal ended
+  // up with 180 g protein + 90 g fat = 1530 kcal of macros.
+  let proteinG = round1(PROTEIN_G_PER_KG * weightKg);
+  let fatG = round1(FAT_G_PER_KG * weightKg);
+  let macrosCapped = false;
+
+  if (proteinG * 4 > dailyKcal) {
+    // Extreme: protein alone exceeds the daily budget. Cap to dailyKcal/4.
+    proteinG = round1(dailyKcal / 4);
+    macrosCapped = true;
+  }
+
+  const proteinKcal = proteinG * 4;
+  const maxFatKcal = Math.max(0, dailyKcal - proteinKcal);
+  if (fatG * 9 > maxFatKcal) {
+    fatG = round1(maxFatKcal / 9);
+    macrosCapped = true;
+  }
+
+  const carbsKcal = Math.max(0, dailyKcal - proteinKcal - fatG * 9);
   const carbsG = round1(carbsKcal / 4);
 
   return {
@@ -83,6 +106,7 @@ export function computeTargets(input: TargetInput): TargetOutput {
     carbsG,
     fatG,
     flooredToMinimum,
+    macrosCapped,
   };
 }
 

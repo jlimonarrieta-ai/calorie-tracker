@@ -272,6 +272,11 @@ export function GoalsForm({
                 Tu déficit objetivo fue limitado al mínimo seguro para tu sexo.
               </Text>
             )}
+            {preview.macrosCapped && (
+              <Text className="text-xs text-amber-600 mt-2">
+                Tus macros se ajustaron para no exceder la meta diaria de kcal.
+              </Text>
+            )}
           </View>
         )}
 
