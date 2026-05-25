@@ -67,11 +67,15 @@ export function computeTargets(input: TargetInput): TargetOutput {
   const tdee = bmr * ACTIVITY_FACTORS[activity];
 
   const dailyDelta = ((targetKgPerWeek ?? 0) * KCAL_PER_KG_BODY_MASS) / 7;
-  let dailyKcal = tdee + dailyDelta;
-
+  // Finalize `dailyKcal` to an integer BEFORE allocating macros. Otherwise
+  // the cap would run against a fractional kcal budget while the returned
+  // goal is rounded — letting `macroKcal` end up above the integer that the
+  // UI/DB actually persist.
+  const dailyKcalRaw = tdee + dailyDelta;
   const floor = MIN_DAILY_KCAL[sex];
-  const flooredToMinimum = dailyKcal < floor;
-  if (flooredToMinimum) dailyKcal = floor;
+  const rounded = Math.round(dailyKcalRaw);
+  const flooredToMinimum = rounded < floor;
+  const dailyKcal = flooredToMinimum ? floor : rounded;
 
   // Body-weight-based defaults, then capped so total macro kcal never exceeds
   // dailyKcal. Priority: protein > fat > carbs. Clamping carbs to zero alone
@@ -105,7 +109,7 @@ export function computeTargets(input: TargetInput): TargetOutput {
   return {
     bmr: Math.round(bmr),
     tdee: Math.round(tdee),
-    dailyKcal: Math.round(dailyKcal),
+    dailyKcal, // already integer (rounded or floor) before macro allocation
     proteinG,
     carbsG,
     fatG,

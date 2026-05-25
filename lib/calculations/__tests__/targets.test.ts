@@ -151,20 +151,19 @@ describe("computeTargets", () => {
     });
 
     it("macrosCapped can fire without flooredToMinimum (heavy user, normal deficit)", () => {
-      // Heavy user with a moderate deficit that lands ABOVE the floor but the
-      // body-weight macros still exceed dailyKcal — proves both flags are
-      // independent.
-      // F 130kg 170cm 35y sedentary -0.5 kg/wk
-      // BMR = 1300 + 1062.5 - 175 - 161 = 2026.5
-      // TDEE = 2026.5 * 1.2 = 2431.8
-      // delta = -550
-      // dailyKcal = 1881.8 (above 1200 floor)
-      // protein 234g (936) + fat 117g (1053) = 1989 > 1882 → cap fat
+      // A user with realistic anthropometry whose moderate deficit lands ABOVE
+      // the floor, but whose body-weight-based macros still exceed dailyKcal.
+      // Proves the two flags are independent.
+      // F 105kg 165cm 35y sedentary -0.5 kg/wk
+      // BMR = 1050 + 1031.25 - 175 - 161 = 1745.25
+      // TDEE = 1745.25 * 1.2 = 2094.3
+      // dailyKcal = 2094.3 - 550 = 1544.3 → rounded 1544 (above 1200 floor)
+      // protein 189g (756) + fat 94.5g (850.5) = 1606.5 > 1544 → cap fat
       const r = computeTargets(
         build({
           sex: "female",
-          weightKg: 130,
-          heightCm: 170,
+          weightKg: 105,
+          heightCm: 165,
           ageYears: 35,
           activity: "sedentary",
           targetKgPerWeek: -0.5,
@@ -172,6 +171,28 @@ describe("computeTargets", () => {
       );
       expect(r.flooredToMinimum).toBe(false);
       expect(r.macrosCapped).toBe(true);
+
+      const macroKcal = r.proteinG * 4 + r.fatG * 9 + r.carbsG * 4;
+      expect(macroKcal).toBeLessThanOrEqual(r.dailyKcal);
+    });
+
+    it("regression: invariant holds after dailyKcal rounding (Codex round 2 finding)", () => {
+      // Pre-fix bug: cap ran against unrounded dailyKcal (e.g. 1500.46875)
+      // while the returned value was Math.round(...) = 1500. Macros could
+      // sum to 1500.3 — passing the cap, breaking the post-round invariant.
+      // M 98.5kg 145cm 41y light -0.75 kg/wk → raw dailyKcal 1500.46875.
+      const r = computeTargets(
+        build({
+          sex: "male",
+          weightKg: 98.5,
+          heightCm: 145,
+          ageYears: 41,
+          activity: "light",
+          targetKgPerWeek: -0.75,
+        })
+      );
+      expect(r.macrosCapped).toBe(true);
+      expect(r.flooredToMinimum).toBe(false);
 
       const macroKcal = r.proteinG * 4 + r.fatG * 9 + r.carbsG * 4;
       expect(macroKcal).toBeLessThanOrEqual(r.dailyKcal);
