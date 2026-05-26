@@ -1,11 +1,31 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "../lib/auth";
 import { ProfileProvider, useProfile } from "../lib/profile";
 import "../global.css";
+
+// Centralized cancel control for modal screens (add-food, edit-goals, edit-food/[id]).
+// Discoverable on both platforms — iOS users no longer rely solely on swipe-down
+// and Android users no longer rely solely on the system back button.
+// Screens that override options via <Stack.Screen options={{ title }} /> rely on
+// the shallow-merge behavior of setOptions to preserve this headerLeft.
+function CancelButton() {
+  const router = useRouter();
+  return (
+    <TouchableOpacity
+      onPress={() => router.back()}
+      accessibilityRole="button"
+      accessibilityLabel="Cancelar"
+      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      style={{ paddingHorizontal: 8 }}
+    >
+      <Text style={{ color: "#007AFF", fontSize: 16 }}>Cancelar</Text>
+    </TouchableOpacity>
+  );
+}
 
 function RootNavigator() {
   const { session, loading } = useAuth();
@@ -57,15 +77,30 @@ function RootNavigator() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen
         name="add-food"
-        options={{ presentation: "modal", headerShown: true, title: "Agregar comida" }}
+        options={{
+          presentation: "modal",
+          headerShown: true,
+          title: "Agregar comida",
+          headerLeft: () => <CancelButton />,
+        }}
       />
       <Stack.Screen
         name="edit-goals"
-        options={{ presentation: "modal", headerShown: true, title: "Editar metas" }}
+        options={{
+          presentation: "modal",
+          headerShown: true,
+          title: "Editar metas",
+          headerLeft: () => <CancelButton />,
+        }}
       />
       <Stack.Screen
         name="edit-food/[id]"
-        options={{ presentation: "modal", headerShown: true, title: "Editar comida" }}
+        options={{
+          presentation: "modal",
+          headerShown: true,
+          title: "Editar comida",
+          headerLeft: () => <CancelButton />,
+        }}
       />
     </Stack>
   );
