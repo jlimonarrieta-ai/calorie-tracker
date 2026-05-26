@@ -1,5 +1,5 @@
-import { Stack, useRouter } from "expo-router";
-import { useState } from "react";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,13 +17,37 @@ import { useAuth } from "../lib/auth";
 import { useFoodSearch } from "../lib/hooks/useFoodSearch";
 import { useAddFoodEntry } from "../lib/hooks/useAddFoodEntry";
 import { FoodItem, computeMacros } from "../lib/openFoodFacts";
+import { MealType } from "../types/database";
+import { MEAL_ORDER, mealFromDate } from "../lib/calculations/meals";
+
+const MEAL_LABELS: Record<MealType, string> = {
+  breakfast: "Desayuno",
+  lunch: "Comida",
+  dinner: "Cena",
+  snack: "Snack",
+};
+
+function isMealType(v: unknown): v is MealType {
+  return typeof v === "string" && (MEAL_ORDER as readonly string[]).includes(v);
+}
 
 export default function AddFood() {
   const router = useRouter();
   const { session } = useAuth();
+  const params = useLocalSearchParams<{ meal?: string }>();
+
+  // Deep-link meal wins; otherwise infer from local hour at mount time.
+  // useMemo keeps the default stable across re-renders so the picker doesn't
+  // flicker if the clock crosses a boundary while the modal is open.
+  const initialMeal = useMemo<MealType>(
+    () => (isMealType(params.meal) ? params.meal : mealFromDate()),
+    [params.meal]
+  );
+
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<FoodItem | null>(null);
   const [grams, setGrams] = useState("100");
+  const [mealType, setMealType] = useState<MealType>(initialMeal);
   const { results, loading, error } = useFoodSearch(query);
   const { addFromOpenFoodFacts, submitting } = useAddFoodEntry();
 
@@ -42,7 +66,7 @@ export default function AddFood() {
       Alert.alert("Cantidad inválida", "Ingresa los gramos consumidos.");
       return;
     }
-    const result = await addFromOpenFoodFacts(userId, selected, g);
+    const result = await addFromOpenFoodFacts(userId, selected, g, mealType);
     if (result === "ok") router.back();
     else if (result === "error") Alert.alert("Error", "No se pudo guardar la comida.");
     // "duplicate": ignore — the first save is still in flight or just succeeded.
@@ -61,7 +85,10 @@ export default function AddFood() {
             <Text className="text-xl font-bold mb-1">{selected.name}</Text>
             {selected.brand && <Text className="text-gray-500 mb-4">{selected.brand}</Text>}
 
-            <Text className="text-sm text-gray-600 mb-2">Cantidad consumida (gramos)</Text>
+            <Text className="text-sm text-gray-600 mb-2">Comida</Text>
+            <MealChips value={mealType} onChange={setMealType} />
+
+            <Text className="text-sm text-gray-600 mb-2 mt-4">Cantidad consumida (gramos)</Text>
             <TextInput
               className="border border-gray-300 rounded-lg px-4 py-3 mb-4 text-lg"
               keyboardType="numeric"
@@ -164,6 +191,38 @@ export default function AddFood() {
         )}
       />
     </SafeAreaView>
+  );
+}
+
+function MealChips({
+  value,
+  onChange,
+}: {
+  value: MealType;
+  onChange: (m: MealType) => void;
+}) {
+  return (
+    <View className="flex-row flex-wrap gap-2 mb-1">
+      {MEAL_ORDER.map((meal) => {
+        const active = meal === value;
+        return (
+          <TouchableOpacity
+            key={meal}
+            onPress={() => onChange(meal)}
+            className={`px-4 py-2 rounded-full border ${
+              active ? "bg-black border-black" : "bg-white border-gray-300"
+            }`}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            accessibilityLabel={MEAL_LABELS[meal]}
+          >
+            <Text className={active ? "text-white font-medium" : "text-gray-700"}>
+              {MEAL_LABELS[meal]}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
   );
 }
 

@@ -3,8 +3,8 @@ import { useCallback } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   RefreshControl,
+  SectionList,
   Text,
   TouchableOpacity,
   View,
@@ -16,16 +16,24 @@ import { useAuth } from "../../lib/auth";
 import { useTodayEntries } from "../../lib/hooks/useTodayEntries";
 import { useAddFoodEntry } from "../../lib/hooks/useAddFoodEntry";
 import { useProfile } from "../../lib/profile";
+import { FoodEntry, MealType } from "../../types/database";
 
 // Fallback only — onboarding guarantees `daily_calorie_goal` is set before the
 // user lands here, but we keep a sane default in case the profile read fails.
 const DAILY_GOAL_FALLBACK = 2000;
 
+const MEAL_LABELS: Record<MealType, string> = {
+  breakfast: "Desayuno",
+  lunch: "Comida",
+  dinner: "Cena",
+  snack: "Snack",
+};
+
 export default function Today() {
   const router = useRouter();
   const { session } = useAuth();
   const userId = session?.user.id;
-  const { entries, loading, error, refetch, totalCalories } = useTodayEntries(userId);
+  const { entriesByMeal, loading, error, refetch, totalCalories } = useTodayEntries(userId);
   const { deleteEntry } = useAddFoodEntry();
   const { profile } = useProfile();
 
@@ -39,6 +47,7 @@ export default function Today() {
   const goal = profile?.daily_calorie_goal ?? DAILY_GOAL_FALLBACK;
   const remaining = Math.max(0, goal - totalCalories);
   const progress = goal > 0 ? Math.min(1, totalCalories / goal) : 0;
+  const hasAnyEntry = entriesByMeal.some((s) => s.entries.length > 0);
 
   function handleDelete(id: string, name: string) {
     if (!userId) return;
@@ -55,11 +64,30 @@ export default function Today() {
     ]);
   }
 
+  function handleAddToMeal(meal: MealType) {
+    router.push({ pathname: "/add-food", params: { meal } });
+  }
+
+  // SectionList demands a non-empty data array per section to render the row
+  // component at all; we use a sentinel and render the placeholder in
+  // renderItem instead of relying on `renderSectionFooter` so the empty state
+  // shows up inside the section, right under its header.
+  const sections = entriesByMeal.map((s) => ({
+    meal: s.meal,
+    totalCalories: s.totalCalories,
+    data: s.entries.length > 0 ? s.entries : ([{ __empty: true, meal: s.meal }] as const),
+  }));
+
+  type SectionRow = FoodEntry | { __empty: true; meal: MealType };
+
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["bottom"]}>
-      <FlatList
-        data={entries}
-        keyExtractor={(e) => e.id}
+      <SectionList<SectionRow, (typeof sections)[number]>
+        sections={sections}
+        stickySectionHeadersEnabled
+        keyExtractor={(item, index) =>
+          "__empty" in item ? `empty-${item.meal}` : item.id + index
+        }
         contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} />}
         ListHeaderComponent={
@@ -92,44 +120,66 @@ export default function Today() {
                 </TouchableOpacity>
               </View>
             )}
+            {!loading && !error && !hasAnyEntry && (
+              <Text className="text-gray-400 text-sm mt-4">
+                Aún no has registrado nada hoy. Toca + en cualquier sección.
+              </Text>
+            )}
+            {loading && !hasAnyEntry && <ActivityIndicator className="mt-6" />}
           </View>
         }
-        ListEmptyComponent={
-          !loading && !error ? (
-            <View className="items-center mt-10">
-              <Text className="text-gray-500">Aún no has registrado nada hoy.</Text>
-              <Text className="text-gray-400 text-sm mt-1">Toca el botón + para empezar.</Text>
-            </View>
-          ) : !error ? (
-            <ActivityIndicator className="mt-10" />
-          ) : null
-        }
-        renderItem={({ item }) => (
+        renderSectionHeader={({ section }) => (
           <TouchableOpacity
-            className="flex-row justify-between items-center py-3 border-b border-gray-100"
-            onLongPress={() => handleDelete(item.id, item.name)}
+            className="flex-row justify-between items-center bg-white pt-4 pb-2 border-b border-gray-200"
+            onPress={() => handleAddToMeal(section.meal)}
             accessibilityRole="button"
-            accessibilityLabel={`${item.name}, ${Math.round(Number(item.calories))} kilocalorías`}
-            accessibilityHint="Mantén presionado para eliminar"
-            accessibilityActions={[{ name: "activate", label: "Eliminar" }]}
-            onAccessibilityAction={(e) => {
-              if (e.nativeEvent.actionName === "activate") {
-                handleDelete(item.id, item.name);
-              }
-            }}
+            accessibilityLabel={`Agregar a ${MEAL_LABELS[section.meal]}`}
+            accessibilityHint="Abre la pantalla para agregar comida en esta sección"
           >
-            <View className="flex-1 pr-3">
-              <Text className="font-medium" numberOfLines={1}>
-                {item.name}
-              </Text>
-              <Text className="text-gray-500 text-xs mt-0.5">
-                {format(new Date(item.consumed_at), "HH:mm")}
-                {item.serving_grams ? ` · ${item.serving_grams}g` : ""}
+            <View className="flex-row items-baseline">
+              <Text className="text-base font-semibold">{MEAL_LABELS[section.meal]}</Text>
+              <Text className="text-gray-400 text-xs ml-2">
+                {Math.round(section.totalCalories)} kcal
               </Text>
             </View>
-            <Text className="font-semibold">{Math.round(Number(item.calories))} kcal</Text>
+            <Text className="text-gray-400 text-lg leading-none">＋</Text>
           </TouchableOpacity>
         )}
+        renderItem={({ item }) => {
+          if ("__empty" in item) {
+            return (
+              <Text className="text-gray-400 text-xs py-3 border-b border-gray-100">
+                Sin registros
+              </Text>
+            );
+          }
+          return (
+            <TouchableOpacity
+              className="flex-row justify-between items-center py-3 border-b border-gray-100"
+              onLongPress={() => handleDelete(item.id, item.name)}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.name}, ${Math.round(Number(item.calories))} kilocalorías`}
+              accessibilityHint="Mantén presionado para eliminar"
+              accessibilityActions={[{ name: "activate", label: "Eliminar" }]}
+              onAccessibilityAction={(e) => {
+                if (e.nativeEvent.actionName === "activate") {
+                  handleDelete(item.id, item.name);
+                }
+              }}
+            >
+              <View className="flex-1 pr-3">
+                <Text className="font-medium" numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <Text className="text-gray-500 text-xs mt-0.5">
+                  {format(new Date(item.consumed_at), "HH:mm")}
+                  {item.serving_grams ? ` · ${item.serving_grams}g` : ""}
+                </Text>
+              </View>
+              <Text className="font-semibold">{Math.round(Number(item.calories))} kcal</Text>
+            </TouchableOpacity>
+          );
+        }}
       />
 
       <TouchableOpacity

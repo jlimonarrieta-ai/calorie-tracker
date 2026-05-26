@@ -1,5 +1,7 @@
 export type Sex = "male" | "female" | "other";
 
+export type MealType = "breakfast" | "lunch" | "dinner" | "snack";
+
 export type ActivityLevel =
   | "sedentary"
   | "light"
@@ -38,6 +40,7 @@ export type FoodEntry = {
   consumed_at: string;
   source: "manual" | "openfoodfacts" | "usda" | "photo";
   external_id: string | null;
+  meal_type: MealType;
   created_at: string;
 };
 
