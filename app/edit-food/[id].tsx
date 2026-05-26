@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -186,6 +186,7 @@ function EditFoodForm({
 
   return (
     <SafeAreaView className="flex-1 bg-white">
+      <Stack.Screen options={{ title: entry.name }} />
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -225,7 +226,7 @@ function EditFoodForm({
                 className={`border border-gray-300 rounded-lg px-4 py-3 mb-4 text-lg ${
                   isLegacyOff ? "bg-gray-100 text-gray-500" : ""
                 }`}
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 value={grams}
                 onChangeText={setGrams}
                 editable={!isLegacyOff}
@@ -262,7 +263,7 @@ function EditFoodForm({
               <Text className="text-sm text-gray-600 mb-2 mt-4">Calorías</Text>
               <TextInput
                 className="border border-gray-300 rounded-lg px-4 py-3 mb-3 text-lg"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 value={calories}
                 onChangeText={setCalories}
                 accessibilityLabel="Calorías"
@@ -271,7 +272,7 @@ function EditFoodForm({
               <Text className="text-sm text-gray-600 mb-2">Proteína (g)</Text>
               <TextInput
                 className="border border-gray-300 rounded-lg px-4 py-3 mb-3 text-lg"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 value={proteinG}
                 onChangeText={setProteinG}
                 placeholder="Opcional"
@@ -281,7 +282,7 @@ function EditFoodForm({
               <Text className="text-sm text-gray-600 mb-2">Carbohidratos (g)</Text>
               <TextInput
                 className="border border-gray-300 rounded-lg px-4 py-3 mb-3 text-lg"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 value={carbsG}
                 onChangeText={setCarbsG}
                 placeholder="Opcional"
@@ -291,7 +292,7 @@ function EditFoodForm({
               <Text className="text-sm text-gray-600 mb-2">Grasa (g)</Text>
               <TextInput
                 className="border border-gray-300 rounded-lg px-4 py-3 mb-6 text-lg"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 value={fatG}
                 onChangeText={setFatG}
                 placeholder="Opcional"

@@ -154,7 +154,7 @@ export default function AddFood() {
             <Text className="text-sm text-gray-600 mb-2 mt-4">Cantidad consumida (gramos)</Text>
             <TextInput
               className="border border-gray-300 rounded-lg px-4 py-3 mb-4 text-lg"
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               value={grams}
               onChangeText={setGrams}
               autoFocus
@@ -298,7 +298,7 @@ export default function AddFood() {
             <Text className="text-sm text-gray-600 mb-2 mt-4">Calorías</Text>
             <TextInput
               className="border border-gray-300 rounded-lg px-4 py-3 mb-3 text-lg"
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               value={manualCalories}
               onChangeText={setManualCalories}
               accessibilityLabel="Calorías"
@@ -307,7 +307,7 @@ export default function AddFood() {
             <Text className="text-sm text-gray-600 mb-2">Proteína (g)</Text>
             <TextInput
               className="border border-gray-300 rounded-lg px-4 py-3 mb-3 text-lg"
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               value={manualProteinG}
               onChangeText={setManualProteinG}
               placeholder="Opcional"
@@ -317,7 +317,7 @@ export default function AddFood() {
             <Text className="text-sm text-gray-600 mb-2">Carbohidratos (g)</Text>
             <TextInput
               className="border border-gray-300 rounded-lg px-4 py-3 mb-3 text-lg"
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               value={manualCarbsG}
               onChangeText={setManualCarbsG}
               placeholder="Opcional"
@@ -327,7 +327,7 @@ export default function AddFood() {
             <Text className="text-sm text-gray-600 mb-2">Grasa (g)</Text>
             <TextInput
               className="border border-gray-300 rounded-lg px-4 py-3 mb-6 text-lg"
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               value={manualFatG}
               onChangeText={setManualFatG}
               placeholder="Opcional"
