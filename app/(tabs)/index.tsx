@@ -77,6 +77,10 @@ export default function Today() {
     router.push({ pathname: "/add-food", params: { meal } });
   }
 
+  function handleEdit(id: string) {
+    router.push({ pathname: "/edit-food/[id]", params: { id } });
+  }
+
   // Suppress the inline "Sin registros" placeholder on the very first load so
   // the global spinner in the header is the only loading affordance. Once the
   // fetch finishes — even if it returns zero rows — the placeholders take
@@ -152,13 +156,19 @@ export default function Today() {
         renderItem={({ item }) => (
           <TouchableOpacity
             className="flex-row justify-between items-center py-3 border-b border-gray-100"
+            onPress={() => handleEdit(item.id)}
             onLongPress={() => handleDelete(item.id, item.name)}
             accessibilityRole="button"
             accessibilityLabel={`${item.name}, ${Math.round(Number(item.calories))} kilocalorías`}
-            accessibilityHint="Mantén presionado para eliminar"
-            accessibilityActions={[{ name: "activate", label: "Eliminar" }]}
+            accessibilityHint="Toca para editar, mantén presionado para eliminar"
+            accessibilityActions={[
+              { name: "activate", label: "Editar" },
+              { name: "longpress", label: "Eliminar" },
+            ]}
             onAccessibilityAction={(e) => {
               if (e.nativeEvent.actionName === "activate") {
+                handleEdit(item.id);
+              } else if (e.nativeEvent.actionName === "longpress") {
                 handleDelete(item.id, item.name);
               }
             }}
