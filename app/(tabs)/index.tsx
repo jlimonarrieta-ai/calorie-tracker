@@ -68,6 +68,12 @@ export default function Today() {
     router.push({ pathname: "/add-food", params: { meal } });
   }
 
+  // Suppress the inline "Sin registros" placeholder on the very first load so
+  // the global spinner in the header is the only loading affordance. Once the
+  // fetch finishes — even if it returns zero rows — the placeholders take
+  // over. Subsequent pull-to-refresh keeps existing rows visible because
+  // `hasAnyEntry` stays true while data is in state.
+  const initialLoad = loading && !hasAnyEntry;
   // SectionList demands a non-empty data array per section to render the row
   // component at all; we use a sentinel and render the placeholder in
   // renderItem instead of relying on `renderSectionFooter` so the empty state
@@ -75,7 +81,12 @@ export default function Today() {
   const sections = entriesByMeal.map((s) => ({
     meal: s.meal,
     totalCalories: s.totalCalories,
-    data: s.entries.length > 0 ? s.entries : ([{ __empty: true, meal: s.meal }] as const),
+    data:
+      s.entries.length > 0
+        ? s.entries
+        : initialLoad
+          ? []
+          : ([{ __empty: true, meal: s.meal }] as const),
   }));
 
   type SectionRow = FoodEntry | { __empty: true; meal: MealType };
