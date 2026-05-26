@@ -75,8 +75,20 @@ export function useTodayEntries(userId: string | undefined) {
     refetch();
   }, [refetch]);
 
-  const totalCalories = entries.reduce((sum, e) => sum + Number(e.calories), 0);
   const entriesByMeal = useMemo(() => groupByMeal(entries), [entries]);
+  const totals = useMemo(
+    () =>
+      entries.reduce(
+        (acc, e) => ({
+          kcal: acc.kcal + Number(e.calories),
+          proteinG: acc.proteinG + Number(e.protein_g ?? 0),
+          carbsG: acc.carbsG + Number(e.carbs_g ?? 0),
+          fatG: acc.fatG + Number(e.fat_g ?? 0),
+        }),
+        { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }
+      ),
+    [entries]
+  );
 
-  return { entries, entriesByMeal, loading, error, refetch, totalCalories };
+  return { entries, entriesByMeal, totals, loading, error, refetch };
 }

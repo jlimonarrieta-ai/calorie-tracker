@@ -17,6 +17,7 @@ import { useTodayEntries } from "../../lib/hooks/useTodayEntries";
 import { useAddFoodEntry } from "../../lib/hooks/useAddFoodEntry";
 import { useProfile } from "../../lib/profile";
 import { FoodEntry, MealType } from "../../types/database";
+import { DailySummary } from "../../components/DailySummary";
 
 // Fallback only — onboarding guarantees `daily_calorie_goal` is set before the
 // user lands here, but we keep a sane default in case the profile read fails.
@@ -33,7 +34,7 @@ export default function Today() {
   const router = useRouter();
   const { session } = useAuth();
   const userId = session?.user.id;
-  const { entriesByMeal, loading, error, refetch, totalCalories } = useTodayEntries(userId);
+  const { entriesByMeal, totals, loading, error, refetch } = useTodayEntries(userId);
   const { deleteEntry } = useAddFoodEntry();
   const { profile } = useProfile();
 
@@ -44,10 +45,18 @@ export default function Today() {
     }, [refetch])
   );
 
-  const goal = profile?.daily_calorie_goal ?? DAILY_GOAL_FALLBACK;
-  const remaining = Math.max(0, goal - totalCalories);
-  const progress = goal > 0 ? Math.min(1, totalCalories / goal) : 0;
   const hasAnyEntry = entriesByMeal.some((s) => s.entries.length > 0);
+
+  // Profile may be null on the very first paint after sign-in before the
+  // ProfileProvider hydrates; fall back to a sane kcal goal so the donut still
+  // renders rather than blanking out. Macro targets stay null so DailySummary
+  // can show "Sin meta" for them until the profile arrives.
+  const targets = {
+    kcal: profile?.daily_calorie_goal ?? DAILY_GOAL_FALLBACK,
+    proteinG: profile?.protein_g_target ?? null,
+    carbsG: profile?.carbs_g_target ?? null,
+    fatG: profile?.fat_g_target ?? null,
+  };
 
   function handleDelete(id: string, name: string) {
     if (!userId) return;
@@ -90,22 +99,12 @@ export default function Today() {
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} />}
         ListHeaderComponent={
           <View className="mb-6">
-            <Text className="text-gray-500 mb-1">
+            <Text className="text-gray-500 mb-3">
               {format(new Date(), "EEEE, d 'de' MMMM", { locale: es }).replace(/^./, (s) =>
                 s.toUpperCase()
               )}
             </Text>
-            <View className="flex-row items-baseline">
-              <Text className="text-4xl font-bold">{Math.round(totalCalories)}</Text>
-              <Text className="text-gray-500 ml-2">/ {goal} kcal</Text>
-            </View>
-            <Text className="text-gray-500 mt-1">{Math.round(remaining)} kcal restantes</Text>
-            <View className="h-2 bg-gray-100 rounded-full mt-3 overflow-hidden">
-              <View
-                className="h-full bg-black"
-                style={{ width: `${Math.round(progress * 100)}%` }}
-              />
-            </View>
+            <DailySummary totals={totals} targets={targets} />
             {error && (
               <View className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200">
                 <Text className="text-red-700 text-sm mb-2">No se pudo cargar el día: {error}</Text>
