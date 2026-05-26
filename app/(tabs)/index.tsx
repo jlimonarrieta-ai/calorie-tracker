@@ -74,31 +74,18 @@ export default function Today() {
   // over. Subsequent pull-to-refresh keeps existing rows visible because
   // `hasAnyEntry` stays true while data is in state.
   const initialLoad = loading && !hasAnyEntry;
-  // SectionList demands a non-empty data array per section to render the row
-  // component at all; we use a sentinel and render the placeholder in
-  // renderItem instead of relying on `renderSectionFooter` so the empty state
-  // shows up inside the section, right under its header.
   const sections = entriesByMeal.map((s) => ({
     meal: s.meal,
     totalCalories: s.totalCalories,
-    data:
-      s.entries.length > 0
-        ? s.entries
-        : initialLoad
-          ? []
-          : ([{ __empty: true, meal: s.meal }] as const),
+    data: s.entries,
   }));
-
-  type SectionRow = FoodEntry | { __empty: true; meal: MealType };
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["bottom"]}>
-      <SectionList<SectionRow, (typeof sections)[number]>
+      <SectionList<FoodEntry, (typeof sections)[number]>
         sections={sections}
         stickySectionHeadersEnabled
-        keyExtractor={(item, index) =>
-          "__empty" in item ? `empty-${item.meal}` : item.id + index
-        }
+        keyExtractor={(item, index) => item.id + index}
         contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} />}
         ListHeaderComponent={
@@ -156,41 +143,39 @@ export default function Today() {
             <Text className="text-gray-400 text-lg leading-none">＋</Text>
           </TouchableOpacity>
         )}
-        renderItem={({ item }) => {
-          if ("__empty" in item) {
-            return (
-              <Text className="text-gray-400 text-xs py-3 border-b border-gray-100">
-                Sin registros
+        renderSectionFooter={({ section }) =>
+          section.data.length === 0 && !initialLoad ? (
+            <Text className="text-gray-400 text-xs py-3 border-b border-gray-100">
+              Sin registros
+            </Text>
+          ) : null
+        }
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            className="flex-row justify-between items-center py-3 border-b border-gray-100"
+            onLongPress={() => handleDelete(item.id, item.name)}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.name}, ${Math.round(Number(item.calories))} kilocalorías`}
+            accessibilityHint="Mantén presionado para eliminar"
+            accessibilityActions={[{ name: "activate", label: "Eliminar" }]}
+            onAccessibilityAction={(e) => {
+              if (e.nativeEvent.actionName === "activate") {
+                handleDelete(item.id, item.name);
+              }
+            }}
+          >
+            <View className="flex-1 pr-3">
+              <Text className="font-medium" numberOfLines={1}>
+                {item.name}
               </Text>
-            );
-          }
-          return (
-            <TouchableOpacity
-              className="flex-row justify-between items-center py-3 border-b border-gray-100"
-              onLongPress={() => handleDelete(item.id, item.name)}
-              accessibilityRole="button"
-              accessibilityLabel={`${item.name}, ${Math.round(Number(item.calories))} kilocalorías`}
-              accessibilityHint="Mantén presionado para eliminar"
-              accessibilityActions={[{ name: "activate", label: "Eliminar" }]}
-              onAccessibilityAction={(e) => {
-                if (e.nativeEvent.actionName === "activate") {
-                  handleDelete(item.id, item.name);
-                }
-              }}
-            >
-              <View className="flex-1 pr-3">
-                <Text className="font-medium" numberOfLines={1}>
-                  {item.name}
-                </Text>
-                <Text className="text-gray-500 text-xs mt-0.5">
-                  {format(new Date(item.consumed_at), "HH:mm")}
-                  {item.serving_grams ? ` · ${item.serving_grams}g` : ""}
-                </Text>
-              </View>
-              <Text className="font-semibold">{Math.round(Number(item.calories))} kcal</Text>
-            </TouchableOpacity>
-          );
-        }}
+              <Text className="text-gray-500 text-xs mt-0.5">
+                {format(new Date(item.consumed_at), "HH:mm")}
+                {item.serving_grams ? ` · ${item.serving_grams}g` : ""}
+              </Text>
+            </View>
+            <Text className="font-semibold">{Math.round(Number(item.calories))} kcal</Text>
+          </TouchableOpacity>
+        )}
       />
 
       <TouchableOpacity
