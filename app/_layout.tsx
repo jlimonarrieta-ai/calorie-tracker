@@ -63,6 +63,10 @@ function RootNavigator() {
         name="edit-goals"
         options={{ presentation: "modal", headerShown: true, title: "Editar metas" }}
       />
+      <Stack.Screen
+        name="edit-food/[id]"
+        options={{ presentation: "modal", headerShown: true, title: "Editar comida" }}
+      />
     </Stack>
   );
 }

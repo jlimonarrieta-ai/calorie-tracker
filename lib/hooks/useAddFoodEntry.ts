@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
 import { FoodItem, computeMacros } from "../openFoodFacts";
-import { MealType } from "../../types/database";
+import { FoodEntry, MealType } from "../../types/database";
+import { scaleMacros } from "../calculations/scaling";
 
 export type ManualEntry = {
   name: string;
@@ -10,6 +11,19 @@ export type ManualEntry = {
   carbsG?: number | null;
   fatG?: number | null;
   mealType: MealType;
+};
+
+// Updates the edit screen can request. Shape matches the two source types:
+//   - OFF entries: caller passes `servingGrams`; macros scale linearly here.
+//   - Manual entries: caller passes the macro fields directly.
+// `mealType` is always required because both flows expose the meal picker.
+export type EntryUpdates = {
+  mealType: MealType;
+  servingGrams?: number;
+  calories?: number;
+  proteinG?: number | null;
+  carbsG?: number | null;
+  fatG?: number | null;
 };
 
 // Tri-state result so a duplicate tap (skipped because another insert is in
@@ -114,6 +128,97 @@ export function useAddFoodEntry() {
     }
   }
 
+  async function updateEntry(
+    entryId: string,
+    userId: string,
+    original: FoodEntry,
+    updates: EntryUpdates
+  ): Promise<AddResult> {
+    if (inFlightRef.current) return "duplicate";
+    inFlightRef.current = true;
+    safeSetSubmitting(true);
+    safeSetError(null);
+    try {
+      // Build the patch by source type so we never overwrite a field the
+      // current source shouldn't expose (e.g. macros on an OFF entry, which
+      // are derived from grams).
+      const patch: Record<string, unknown> = { meal_type: updates.mealType };
+
+      if (original.source === "openfoodfacts" && updates.servingGrams !== undefined) {
+        if (!Number.isFinite(updates.servingGrams) || updates.servingGrams <= 0) {
+          safeSetError("Cantidad inválida");
+          return "error";
+        }
+        // Reject the save when the legacy row has no scalable base. Without this
+        // guard scaleMacros falls back to zeros and we'd silently overwrite the
+        // existing calories — better to surface the bad state to the user.
+        const origGrams = Number(original.serving_grams);
+        if (!Number.isFinite(origGrams) || origGrams <= 0) {
+          safeSetError(
+            "Esta entrada no tiene base de porción para escalar. Bórrala y vuelve a registrarla."
+          );
+          return "error";
+        }
+        const scaled = scaleMacros(original, updates.servingGrams);
+        patch.serving_grams = updates.servingGrams;
+        patch.calories = scaled.calories;
+        patch.protein_g = scaled.proteinG;
+        patch.carbs_g = scaled.carbsG;
+        patch.fat_g = scaled.fatG;
+      } else if (original.source === "manual") {
+        if (updates.calories !== undefined) {
+          if (!Number.isFinite(updates.calories) || updates.calories < 0) {
+            safeSetError("Calorías inválidas");
+            return "error";
+          }
+          patch.calories = updates.calories;
+        }
+        // Each macro is either null (cleared) or a finite non-negative number.
+        // We reject -1 / NaN / Infinity here so callers other than the edit
+        // screen can't slip bad data past the form-level guard.
+        const macroFields: Array<[keyof EntryUpdates, string]> = [
+          ["proteinG", "protein_g"],
+          ["carbsG", "carbs_g"],
+          ["fatG", "fat_g"],
+        ];
+        for (const [key, col] of macroFields) {
+          const v = updates[key] as number | null | undefined;
+          if (v === undefined) continue;
+          if (v !== null && (!Number.isFinite(v) || v < 0)) {
+            safeSetError("Macro inválido");
+            return "error";
+          }
+          patch[col] = v;
+        }
+      }
+
+      // `.select("id").maybeSingle()` lets us distinguish a save-after-delete
+      // race (zero rows matched, no PostgREST error) from a successful update.
+      const { data, error } = await supabase
+        .from("food_entries")
+        .update(patch)
+        .eq("id", entryId)
+        .eq("user_id", userId)
+        .select("id")
+        .maybeSingle();
+      if (error) {
+        safeSetError(error.message);
+        return "error";
+      }
+      if (!data) {
+        safeSetError("La entrada ya no existe");
+        return "error";
+      }
+      return "ok";
+    } catch (e: unknown) {
+      safeSetError((e as Error).message);
+      return "error";
+    } finally {
+      inFlightRef.current = false;
+      safeSetSubmitting(false);
+    }
+  }
+
   // Hardening: include user_id in the filter so intent is explicit and we don't
   // rely solely on RLS to scope deletes to the current user.
   async function deleteEntry(entryId: string, userId: string) {
@@ -134,5 +239,12 @@ export function useAddFoodEntry() {
     }
   }
 
-  return { addFromOpenFoodFacts, addManual, deleteEntry, submitting, error };
+  return {
+    addFromOpenFoodFacts,
+    addManual,
+    updateEntry,
+    deleteEntry,
+    submitting,
+    error,
+  };
 }
