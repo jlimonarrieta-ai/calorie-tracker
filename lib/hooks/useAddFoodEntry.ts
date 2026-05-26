@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
 import { FoodItem, computeMacros } from "../openFoodFacts";
+import { MealType } from "../../types/database";
 
 export type ManualEntry = {
   name: string;
@@ -8,6 +9,7 @@ export type ManualEntry = {
   proteinG?: number | null;
   carbsG?: number | null;
   fatG?: number | null;
+  mealType: MealType;
 };
 
 // Tri-state result so a duplicate tap (skipped because another insert is in
@@ -37,7 +39,8 @@ export function useAddFoodEntry() {
   async function addFromOpenFoodFacts(
     userId: string,
     item: FoodItem,
-    grams: number
+    grams: number,
+    mealType: MealType
   ): Promise<AddResult> {
     if (inFlightRef.current) return "duplicate";
     // Defensive: even though the UI validates, never persist non-finite or
@@ -61,6 +64,7 @@ export function useAddFoodEntry() {
         serving_grams: grams,
         source: "openfoodfacts",
         external_id: item.externalId,
+        meal_type: mealType,
       });
       if (error) {
         safeSetError(error.message);
@@ -94,6 +98,7 @@ export function useAddFoodEntry() {
         carbs_g: entry.carbsG ?? null,
         fat_g: entry.fatG ?? null,
         source: "manual",
+        meal_type: entry.mealType,
       });
       if (error) {
         safeSetError(error.message);

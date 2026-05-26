@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabase";
 import { FoodEntry } from "../../types/database";
+import { groupByMeal } from "../calculations/meals";
 
 function startOfTodayISO(): string {
   const d = new Date();
@@ -75,6 +76,7 @@ export function useTodayEntries(userId: string | undefined) {
   }, [refetch]);
 
   const totalCalories = entries.reduce((sum, e) => sum + Number(e.calories), 0);
+  const entriesByMeal = useMemo(() => groupByMeal(entries), [entries]);
 
-  return { entries, loading, error, refetch, totalCalories };
+  return { entries, entriesByMeal, loading, error, refetch, totalCalories };
 }

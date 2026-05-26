@@ -3,8 +3,8 @@ import { useCallback } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   RefreshControl,
+  SectionList,
   Text,
   TouchableOpacity,
   View,
@@ -16,16 +16,24 @@ import { useAuth } from "../../lib/auth";
 import { useTodayEntries } from "../../lib/hooks/useTodayEntries";
 import { useAddFoodEntry } from "../../lib/hooks/useAddFoodEntry";
 import { useProfile } from "../../lib/profile";
+import { FoodEntry, MealType } from "../../types/database";
 
 // Fallback only — onboarding guarantees `daily_calorie_goal` is set before the
 // user lands here, but we keep a sane default in case the profile read fails.
 const DAILY_GOAL_FALLBACK = 2000;
 
+const MEAL_LABELS: Record<MealType, string> = {
+  breakfast: "Desayuno",
+  lunch: "Comida",
+  dinner: "Cena",
+  snack: "Snack",
+};
+
 export default function Today() {
   const router = useRouter();
   const { session } = useAuth();
   const userId = session?.user.id;
-  const { entries, loading, error, refetch, totalCalories } = useTodayEntries(userId);
+  const { entriesByMeal, loading, error, refetch, totalCalories } = useTodayEntries(userId);
   const { deleteEntry } = useAddFoodEntry();
   const { profile } = useProfile();
 
@@ -39,6 +47,7 @@ export default function Today() {
   const goal = profile?.daily_calorie_goal ?? DAILY_GOAL_FALLBACK;
   const remaining = Math.max(0, goal - totalCalories);
   const progress = goal > 0 ? Math.min(1, totalCalories / goal) : 0;
+  const hasAnyEntry = entriesByMeal.some((s) => s.entries.length > 0);
 
   function handleDelete(id: string, name: string) {
     if (!userId) return;
@@ -55,11 +64,28 @@ export default function Today() {
     ]);
   }
 
+  function handleAddToMeal(meal: MealType) {
+    router.push({ pathname: "/add-food", params: { meal } });
+  }
+
+  // Suppress the inline "Sin registros" placeholder on the very first load so
+  // the global spinner in the header is the only loading affordance. Once the
+  // fetch finishes — even if it returns zero rows — the placeholders take
+  // over. Subsequent pull-to-refresh keeps existing rows visible because
+  // `hasAnyEntry` stays true while data is in state.
+  const initialLoad = loading && !hasAnyEntry;
+  const sections = entriesByMeal.map((s) => ({
+    meal: s.meal,
+    totalCalories: s.totalCalories,
+    data: s.entries,
+  }));
+
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["bottom"]}>
-      <FlatList
-        data={entries}
-        keyExtractor={(e) => e.id}
+      <SectionList<FoodEntry, (typeof sections)[number]>
+        sections={sections}
+        stickySectionHeadersEnabled
+        keyExtractor={(item, index) => item.id + index}
         contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} />}
         ListHeaderComponent={
@@ -92,16 +118,36 @@ export default function Today() {
                 </TouchableOpacity>
               </View>
             )}
+            {!loading && !error && !hasAnyEntry && (
+              <Text className="text-gray-400 text-sm mt-4">
+                Aún no has registrado nada hoy. Toca + en cualquier sección.
+              </Text>
+            )}
+            {loading && !hasAnyEntry && <ActivityIndicator className="mt-6" />}
           </View>
         }
-        ListEmptyComponent={
-          !loading && !error ? (
-            <View className="items-center mt-10">
-              <Text className="text-gray-500">Aún no has registrado nada hoy.</Text>
-              <Text className="text-gray-400 text-sm mt-1">Toca el botón + para empezar.</Text>
+        renderSectionHeader={({ section }) => (
+          <TouchableOpacity
+            className="flex-row justify-between items-center bg-white pt-4 pb-2 border-b border-gray-200"
+            onPress={() => handleAddToMeal(section.meal)}
+            accessibilityRole="button"
+            accessibilityLabel={`Agregar a ${MEAL_LABELS[section.meal]}`}
+            accessibilityHint="Abre la pantalla para agregar comida en esta sección"
+          >
+            <View className="flex-row items-baseline">
+              <Text className="text-base font-semibold">{MEAL_LABELS[section.meal]}</Text>
+              <Text className="text-gray-400 text-xs ml-2">
+                {Math.round(section.totalCalories)} kcal
+              </Text>
             </View>
-          ) : !error ? (
-            <ActivityIndicator className="mt-10" />
+            <Text className="text-gray-400 text-lg leading-none">＋</Text>
+          </TouchableOpacity>
+        )}
+        renderSectionFooter={({ section }) =>
+          section.data.length === 0 && !initialLoad ? (
+            <Text className="text-gray-400 text-xs py-3 border-b border-gray-100">
+              Sin registros
+            </Text>
           ) : null
         }
         renderItem={({ item }) => (
