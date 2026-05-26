@@ -214,7 +214,7 @@ function EditFoodForm({
           )}
 
           <Text className="text-sm text-gray-600 mb-2">Comida</Text>
-          <MealChips value={mealType} onChange={setMealType} />
+          <MealChips value={mealType} onChange={setMealType} disabled={isLegacyOff} />
 
           {isOff ? (
             <>
@@ -336,26 +336,42 @@ function EditFoodForm({
 function MealChips({
   value,
   onChange,
+  disabled = false,
 }: {
   value: MealType;
   onChange: (m: MealType) => void;
+  disabled?: boolean;
 }) {
   return (
     <View className="flex-row flex-wrap gap-2 mb-1">
       {MEAL_ORDER.map((meal) => {
         const active = meal === value;
+        const bg = disabled
+          ? active
+            ? "bg-gray-400 border-gray-400"
+            : "bg-gray-100 border-gray-200"
+          : active
+            ? "bg-black border-black"
+            : "bg-white border-gray-300";
         return (
           <TouchableOpacity
             key={meal}
             onPress={() => onChange(meal)}
-            className={`px-4 py-2 rounded-full border ${
-              active ? "bg-black border-black" : "bg-white border-gray-300"
-            }`}
+            disabled={disabled}
+            className={`px-4 py-2 rounded-full border ${bg}`}
             accessibilityRole="button"
-            accessibilityState={{ selected: active }}
+            accessibilityState={{ selected: active, disabled }}
             accessibilityLabel={MEAL_LABELS[meal]}
           >
-            <Text className={active ? "text-white font-medium" : "text-gray-700"}>
+            <Text
+              className={
+                active
+                  ? "text-white font-medium"
+                  : disabled
+                    ? "text-gray-400"
+                    : "text-gray-700"
+              }
+            >
               {MEAL_LABELS[meal]}
             </Text>
           </TouchableOpacity>
