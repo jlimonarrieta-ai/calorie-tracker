@@ -103,6 +103,25 @@ describe("computeTargets", () => {
       const r = computeTargets(build({ targetKgPerWeek: -0.5 }));
       expect(r.flooredToMinimum).toBe(false);
     });
+
+    it("flags floor even when rounded raw exactly equals the floor (Codex round 3 Low #2)", () => {
+      // M 18y 145cm 46.5kg sedentary -0.04 kg/wk
+      // BMR = 465 + 906.25 - 90 + 5 = 1286.25
+      // TDEE = 1286.25 * 1.2 = 1543.5
+      // delta = -44; raw = 1499.5; Math.round(1499.5) = 1500 = floor.
+      // The raw target IS below the floor — warning should fire even though
+      // the returned int sits exactly on the floor.
+      const r = computeTargets({
+        sex: "male",
+        ageYears: 18,
+        heightCm: 145,
+        weightKg: 46.5,
+        activity: "sedentary",
+        targetKgPerWeek: -0.04,
+      });
+      expect(r.dailyKcal).toBe(1500);
+      expect(r.flooredToMinimum).toBe(true);
+    });
   });
 
   describe("macro allocator — invariants", () => {
@@ -219,6 +238,24 @@ describe("computeTargets", () => {
       expect(r.flooredToMinimum).toBe(false);
       expect(r.dailyKcal).toBe(2621);
 
+      const macroKcal = r.proteinG * 4 + r.fatG * 9 + r.carbsG * 4;
+      expect(macroKcal).toBeLessThanOrEqual(r.dailyKcal);
+    });
+
+    it("FP defense: invariant holds at extreme inputs that surface IEEE-754 recombination (Codex round 3 Low #1)", () => {
+      // From Codex's 1M randomized sweep:
+      // other / 77.786y / 171.974cm / 291.803kg / very_active / +1.154 kg/wk
+      // Pre-fix the rounded one-decimal macros summed to 7969.000000000001,
+      // breaking strict <= dailyKcal=7969 by FP residual. Post-hoc carbs trim
+      // restores the invariant.
+      const r = computeTargets({
+        sex: "other",
+        ageYears: 77.786,
+        heightCm: 171.974,
+        weightKg: 291.803,
+        activity: "very_active",
+        targetKgPerWeek: 1.154,
+      });
       const macroKcal = r.proteinG * 4 + r.fatG * 9 + r.carbsG * 4;
       expect(macroKcal).toBeLessThanOrEqual(r.dailyKcal);
     });

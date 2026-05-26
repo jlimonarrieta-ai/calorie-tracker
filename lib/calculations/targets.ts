@@ -73,9 +73,12 @@ export function computeTargets(input: TargetInput): TargetOutput {
   // UI/DB actually persist.
   const dailyKcalRaw = tdee + dailyDelta;
   const floor = MIN_DAILY_KCAL[sex];
-  const rounded = Math.round(dailyKcalRaw);
-  const flooredToMinimum = rounded < floor;
-  const dailyKcal = flooredToMinimum ? floor : rounded;
+  // Compare the raw target (not the rounded one) so a raw of 1499.5 — which
+  // does round to 1500 = floor — still flags as floored. The warning means
+  // "your computed target was below the safety floor"; rounding up onto the
+  // floor exactly still counts as having been raised by the safety check.
+  const flooredToMinimum = dailyKcalRaw < floor;
+  const dailyKcal = flooredToMinimum ? floor : Math.round(dailyKcalRaw);
 
   // Body-weight-based defaults, then capped so total macro kcal never exceeds
   // dailyKcal. Priority: protein > fat > carbs. Clamping carbs to zero alone
@@ -104,7 +107,15 @@ export function computeTargets(input: TargetInput): TargetOutput {
   // Carbs are residual — floor so any rounding remainder is absorbed silently
   // rather than pushed back into the macro total.
   const carbsKcal = Math.max(0, dailyKcal - proteinKcal - fatG * 9);
-  const carbsG = floor1(carbsKcal / 4);
+  let carbsG = floor1(carbsKcal / 4);
+
+  // Defense against IEEE-754 recombination: at extreme inputs (e.g. ~290 kg
+  // weight) the rounded one-decimal macros summed back up can exceed
+  // `dailyKcal` by a sub-femto fraction (e.g. 7969.0000000000001 vs 7969).
+  // Trim 0.1 g off carbs once if the recomputed JS sum surfaces the residual.
+  if (carbsG > 0 && proteinG * 4 + fatG * 9 + carbsG * 4 > dailyKcal) {
+    carbsG = round1(carbsG - 0.1);
+  }
 
   return {
     bmr: Math.round(bmr),
