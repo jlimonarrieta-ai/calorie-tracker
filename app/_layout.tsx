@@ -16,7 +16,13 @@ function CancelButton() {
   const router = useRouter();
   return (
     <TouchableOpacity
-      onPress={() => router.back()}
+      onPress={() => {
+        // Fall back to (tabs) when there's no back history (deep link,
+        // Fast Refresh, or app relaunch into a modal route). router.back()
+        // can no-op in those cases. Same pattern as edit-goals submit.
+        if (router.canGoBack()) router.back();
+        else router.replace("/(tabs)");
+      }}
       accessibilityRole="button"
       accessibilityLabel="Cancelar"
       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
