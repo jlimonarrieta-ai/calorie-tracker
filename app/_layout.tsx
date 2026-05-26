@@ -28,7 +28,7 @@ function CancelButton() {
       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       style={{ paddingHorizontal: 8 }}
     >
-      <Text style={{ color: "#007AFF", fontSize: 16 }}>Cancelar</Text>
+      <Text style={{ color: "#FF3B30", fontSize: 16 }}>Cancelar</Text>
     </TouchableOpacity>
   );
 }
