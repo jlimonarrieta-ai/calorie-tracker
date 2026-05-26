@@ -7,6 +7,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -81,7 +82,12 @@ export default function AddFood() {
           className="flex-1"
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <View className="flex-1 px-6 pt-6">
+          <ScrollView
+            className="flex-1"
+            contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 48 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <Text className="text-xl font-bold mb-1">{selected.name}</Text>
             {selected.brand && <Text className="text-gray-500 mb-4">{selected.brand}</Text>}
 
@@ -126,7 +132,7 @@ export default function AddFood() {
             >
               <Text className="text-gray-600">Cambiar selección</Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     );
