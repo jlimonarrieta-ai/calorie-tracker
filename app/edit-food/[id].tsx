@@ -111,6 +111,10 @@ function EditFoodForm({
   onDelete: () => void;
 }) {
   const isOff = entry.source === "openfoodfacts";
+  // OFF rows from before serving_grams was tracked have null/0 here; the
+  // hook rejects the save because there's no base to scale macros from.
+  // Surface that up front instead of letting the user discover it at submit.
+  const isLegacyOff = isOff && (!entry.serving_grams || entry.serving_grams <= 0);
 
   const [mealType, setMealType] = useState<MealType>(entry.meal_type);
   const [grams, setGrams] = useState<string>(
@@ -197,8 +201,20 @@ function EditFoodForm({
             {isOff ? "Open Food Facts" : "Entrada manual"}
           </Text>
 
+          {isLegacyOff && (
+            <View
+              className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4"
+              accessibilityRole="alert"
+            >
+              <Text className="text-amber-900 font-medium mb-1">⚠ No se puede editar</Text>
+              <Text className="text-amber-900 text-sm">
+                Esta entrada no tiene base de porción para escalar. Bórrala y vuelve a registrarla.
+              </Text>
+            </View>
+          )}
+
           <Text className="text-sm text-gray-600 mb-2">Comida</Text>
-          <MealChips value={mealType} onChange={setMealType} />
+          <MealChips value={mealType} onChange={setMealType} disabled={isLegacyOff} />
 
           {isOff ? (
             <>
@@ -206,11 +222,15 @@ function EditFoodForm({
                 Cantidad consumida (gramos)
               </Text>
               <TextInput
-                className="border border-gray-300 rounded-lg px-4 py-3 mb-4 text-lg"
+                className={`border border-gray-300 rounded-lg px-4 py-3 mb-4 text-lg ${
+                  isLegacyOff ? "bg-gray-100 text-gray-500" : ""
+                }`}
                 keyboardType="numeric"
                 value={grams}
                 onChangeText={setGrams}
+                editable={!isLegacyOff}
                 accessibilityLabel="Cantidad en gramos"
+                accessibilityState={{ disabled: isLegacyOff }}
               />
 
               <View className="bg-gray-50 rounded-lg p-4 mb-6">
@@ -281,12 +301,17 @@ function EditFoodForm({
           )}
 
           <TouchableOpacity
-            className="bg-black rounded-lg py-4 items-center"
+            className={`rounded-lg py-4 items-center ${
+              submitting || isLegacyOff ? "bg-gray-300" : "bg-black"
+            }`}
             onPress={handleSave}
-            disabled={submitting}
+            disabled={submitting || isLegacyOff}
             accessibilityRole="button"
             accessibilityLabel="Guardar cambios"
-            accessibilityState={{ disabled: submitting, busy: submitting }}
+            accessibilityState={{
+              disabled: submitting || isLegacyOff,
+              busy: submitting,
+            }}
           >
             <Text className="text-white font-semibold">
               {submitting ? "Guardando..." : "Guardar cambios"}
@@ -311,26 +336,42 @@ function EditFoodForm({
 function MealChips({
   value,
   onChange,
+  disabled = false,
 }: {
   value: MealType;
   onChange: (m: MealType) => void;
+  disabled?: boolean;
 }) {
   return (
     <View className="flex-row flex-wrap gap-2 mb-1">
       {MEAL_ORDER.map((meal) => {
         const active = meal === value;
+        const bg = disabled
+          ? active
+            ? "bg-gray-400 border-gray-400"
+            : "bg-gray-100 border-gray-200"
+          : active
+            ? "bg-black border-black"
+            : "bg-white border-gray-300";
         return (
           <TouchableOpacity
             key={meal}
             onPress={() => onChange(meal)}
-            className={`px-4 py-2 rounded-full border ${
-              active ? "bg-black border-black" : "bg-white border-gray-300"
-            }`}
+            disabled={disabled}
+            className={`px-4 py-2 rounded-full border ${bg}`}
             accessibilityRole="button"
-            accessibilityState={{ selected: active }}
+            accessibilityState={{ selected: active, disabled }}
             accessibilityLabel={MEAL_LABELS[meal]}
           >
-            <Text className={active ? "text-white font-medium" : "text-gray-700"}>
+            <Text
+              className={
+                active
+                  ? "text-white font-medium"
+                  : disabled
+                    ? "text-gray-400"
+                    : "text-gray-700"
+              }
+            >
               {MEAL_LABELS[meal]}
             </Text>
           </TouchableOpacity>
