@@ -18,10 +18,13 @@ export type DailyTargets = {
 
 // Tailwind hex values inlined so the SVG donut can consume them directly
 // without leaking string-name dependencies on the NativeWind runtime.
+// Tailwind -600 variants chosen over -500 so each fill clears the WCAG
+// 3:1 graphical-object guideline against the gray-200 track. The color
+// family (blue / amber / emerald) is preserved.
 const COLORS = {
-  protein: "#3B82F6", // blue-500
-  carbs: "#F59E0B", //   amber-500
-  fat: "#10B981", //     emerald-500
+  protein: "#2563EB", // blue-600
+  carbs: "#D97706", //   amber-600
+  fat: "#059669", //     emerald-600
   kcalArc: "#000000",
   // red-700, deliberately distinct from any macro color so the overflow
   // segment reads as "warning" rather than "more of the same macro".
@@ -60,8 +63,8 @@ export function DailySummary({
             >
               {Math.round(totals.kcal)}
             </Text>
-            {targets.kcal !== null && (
-              <Text className="text-gray-500 ml-2">/ {targets.kcal} kcal</Text>
+            {kcal.status !== "no-target" && (
+              <Text className="text-gray-500 ml-2">/ {kcal.target} kcal</Text>
             )}
           </View>
           <Text
@@ -107,9 +110,11 @@ function Donut({ progress }: { progress: MacroProgress }) {
       width={DONUT_SIZE}
       height={DONUT_SIZE}
       accessibilityRole="image"
-      accessibilityLabel={`${Math.round(progress.consumed)} de ${
-        progress.target ?? "sin meta"
-      } kilocalorías`}
+      accessibilityLabel={
+        progress.status === "no-target"
+          ? `${Math.round(progress.consumed)} kilocalorías, sin meta`
+          : `${Math.round(progress.consumed)} de ${progress.target} kilocalorías`
+      }
     >
       <Circle
         cx={DONUT_CENTER}
