@@ -19,11 +19,13 @@ export type DailyTargets = {
 // Tailwind hex values inlined so the SVG donut can consume them directly
 // without leaking string-name dependencies on the NativeWind runtime.
 const COLORS = {
-  protein: "#EF4444", // red-500
+  protein: "#3B82F6", // blue-500
   carbs: "#F59E0B", //   amber-500
-  fat: "#8B5CF6", //     violet-500
+  fat: "#10B981", //     emerald-500
   kcalArc: "#000000",
-  over: "#B91C1C", //    red-700, distinct from protein red
+  // red-700, deliberately distinct from any macro color so the overflow
+  // segment reads as "warning" rather than "more of the same macro".
+  over: "#B91C1C",
   track: "#E5E7EB", //   gray-200
 };
 
@@ -86,7 +88,7 @@ function kcalSubtitle(p: MacroProgress): string {
   return `${Math.round(p.remainingG)} kcal restantes`;
 }
 
-function macroSubtitle(p: MacroProgress): string {
+function macroHint(p: MacroProgress): string {
   if (p.status === "no-target") return "Sin meta";
   if (p.status === "over") return `+${Math.round(p.overG)} g pasados`;
   if (p.status === "at") return "Meta alcanzada";
@@ -145,22 +147,32 @@ function MacroBar({
 }) {
   const isOver = progress.status === "over";
   const isNoTarget = progress.status === "no-target";
+  const valueColor = isOver
+    ? "text-red-600 font-semibold"
+    : isNoTarget
+      ? "text-gray-400"
+      : "text-gray-700";
+  const hintColor = isOver
+    ? "text-red-600"
+    : isNoTarget
+      ? "text-gray-400"
+      : "text-gray-500";
 
   return (
     <View className="mb-3">
-      <View className="flex-row justify-between items-center mb-1">
+      <View className="flex-row justify-between items-start mb-1">
         <Text className="text-gray-700 text-sm">{label}</Text>
-        <Text
-          className={`text-xs ${
-            isOver
-              ? "text-red-600 font-semibold"
-              : isNoTarget
-                ? "text-gray-400"
-                : "text-gray-500"
-          }`}
-        >
-          {macroSubtitle(progress)}
-        </Text>
+        <View className="items-end">
+          {/* Always surface the target so users see what they were aiming
+             for even when they've gone over. When no target exists we
+             fall back to the hint line alone. */}
+          {!isNoTarget && (
+            <Text className={`text-sm ${valueColor}`}>
+              {Math.round(progress.consumed)} / {progress.target} g
+            </Text>
+          )}
+          <Text className={`text-xs ${hintColor}`}>{macroHint(progress)}</Text>
+        </View>
       </View>
       <View className="h-2 bg-gray-100 rounded-full overflow-hidden flex-row relative">
         {!isNoTarget && (
