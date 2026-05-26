@@ -149,6 +149,16 @@ export function useAddFoodEntry() {
           safeSetError("Cantidad inválida");
           return "error";
         }
+        // Reject the save when the legacy row has no scalable base. Without this
+        // guard scaleMacros falls back to zeros and we'd silently overwrite the
+        // existing calories — better to surface the bad state to the user.
+        const origGrams = Number(original.serving_grams);
+        if (!Number.isFinite(origGrams) || origGrams <= 0) {
+          safeSetError(
+            "Esta entrada no tiene base de porción para escalar. Bórrala y vuelve a registrarla."
+          );
+          return "error";
+        }
         const scaled = scaleMacros(original, updates.servingGrams);
         patch.serving_grams = updates.servingGrams;
         patch.calories = scaled.calories;
@@ -163,18 +173,40 @@ export function useAddFoodEntry() {
           }
           patch.calories = updates.calories;
         }
-        if (updates.proteinG !== undefined) patch.protein_g = updates.proteinG;
-        if (updates.carbsG !== undefined) patch.carbs_g = updates.carbsG;
-        if (updates.fatG !== undefined) patch.fat_g = updates.fatG;
+        // Each macro is either null (cleared) or a finite non-negative number.
+        // We reject -1 / NaN / Infinity here so callers other than the edit
+        // screen can't slip bad data past the form-level guard.
+        const macroFields: Array<[keyof EntryUpdates, string]> = [
+          ["proteinG", "protein_g"],
+          ["carbsG", "carbs_g"],
+          ["fatG", "fat_g"],
+        ];
+        for (const [key, col] of macroFields) {
+          const v = updates[key] as number | null | undefined;
+          if (v === undefined) continue;
+          if (v !== null && (!Number.isFinite(v) || v < 0)) {
+            safeSetError("Macro inválido");
+            return "error";
+          }
+          patch[col] = v;
+        }
       }
 
-      const { error } = await supabase
+      // `.select("id").maybeSingle()` lets us distinguish a save-after-delete
+      // race (zero rows matched, no PostgREST error) from a successful update.
+      const { data, error } = await supabase
         .from("food_entries")
         .update(patch)
         .eq("id", entryId)
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .select("id")
+        .maybeSingle();
       if (error) {
         safeSetError(error.message);
+        return "error";
+      }
+      if (!data) {
+        safeSetError("La entrada ya no existe");
         return "error";
       }
       return "ok";
