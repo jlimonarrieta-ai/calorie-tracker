@@ -96,9 +96,25 @@ export function useAddFoodEntry() {
 
   async function addManual(userId: string, entry: ManualEntry): Promise<AddResult> {
     if (inFlightRef.current) return "duplicate";
+    if (!entry.name || entry.name.trim() === "") {
+      safeSetError("Nombre requerido");
+      return "error";
+    }
     if (!Number.isFinite(entry.calories) || entry.calories < 0) {
       safeSetError("Calorías inválidas");
       return "error";
+    }
+    // Each macro is either null/undefined (cleared) or a finite non-negative
+    // number. Reject -1 / NaN / Infinity so callers other than the form layer
+    // can't slip bad data past the UI-level guard. Mirrors updateEntry.
+    const macroFields: Array<keyof ManualEntry> = ["proteinG", "carbsG", "fatG"];
+    for (const key of macroFields) {
+      const v = entry[key] as number | null | undefined;
+      if (v == null) continue;
+      if (!Number.isFinite(v) || v < 0) {
+        safeSetError("Macro inválido");
+        return "error";
+      }
     }
     inFlightRef.current = true;
     safeSetSubmitting(true);
@@ -220,8 +236,14 @@ export function useAddFoodEntry() {
   }
 
   // Hardening: include user_id in the filter so intent is explicit and we don't
-  // rely solely on RLS to scope deletes to the current user.
+  // rely solely on RLS to scope deletes to the current user. Share inFlightRef
+  // with the add/update path so a "save then quick-delete" tap or a double-tap
+  // on the delete confirm can't fire two concurrent mutations.
   async function deleteEntry(entryId: string, userId: string) {
+    if (inFlightRef.current) return false;
+    inFlightRef.current = true;
+    safeSetSubmitting(true);
+    safeSetError(null);
     try {
       const { error } = await supabase
         .from("food_entries")
@@ -236,6 +258,9 @@ export function useAddFoodEntry() {
     } catch (e: unknown) {
       safeSetError((e as Error).message);
       return false;
+    } finally {
+      inFlightRef.current = false;
+      safeSetSubmitting(false);
     }
   }
 
