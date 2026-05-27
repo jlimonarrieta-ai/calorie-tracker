@@ -238,9 +238,11 @@ export function useAddFoodEntry() {
   // Hardening: include user_id in the filter so intent is explicit and we don't
   // rely solely on RLS to scope deletes to the current user. Share inFlightRef
   // with the add/update path so a "save then quick-delete" tap or a double-tap
-  // on the delete confirm can't fire two concurrent mutations.
-  async function deleteEntry(entryId: string, userId: string) {
-    if (inFlightRef.current) return false;
+  // on the delete confirm can't fire two concurrent mutations. Returns the same
+  // tri-state as the other mutations so the "lock short-circuit" path is
+  // distinguishable from a real PostgREST error in the caller.
+  async function deleteEntry(entryId: string, userId: string): Promise<AddResult> {
+    if (inFlightRef.current) return "duplicate";
     inFlightRef.current = true;
     safeSetSubmitting(true);
     safeSetError(null);
@@ -252,12 +254,12 @@ export function useAddFoodEntry() {
         .eq("user_id", userId);
       if (error) {
         safeSetError(error.message);
-        return false;
+        return "error";
       }
-      return true;
+      return "ok";
     } catch (e: unknown) {
       safeSetError((e as Error).message);
-      return false;
+      return "error";
     } finally {
       inFlightRef.current = false;
       safeSetSubmitting(false);

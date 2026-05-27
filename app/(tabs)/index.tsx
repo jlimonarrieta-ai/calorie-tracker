@@ -66,8 +66,11 @@ export default function Today() {
         text: "Eliminar",
         style: "destructive",
         onPress: async () => {
-          const ok = await deleteEntry(id, userId);
-          if (ok) refetch();
+          const result = await deleteEntry(id, userId);
+          if (result === "ok") refetch();
+          // "duplicate": another mutation is in flight, skip silently — the
+          // user's tap was deduped, not failed.
+          // "error": hook already set the error state; no Today-side toast today.
         },
       },
     ]);
