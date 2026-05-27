@@ -88,9 +88,11 @@ export default function EditFood() {
             text: "Eliminar",
             style: "destructive",
             onPress: async () => {
-              const ok = await deleteEntry(entry.id, userId);
-              if (ok) router.back();
-              else Alert.alert("Error", "No se pudo eliminar la comida.");
+              const result = await deleteEntry(entry.id, userId);
+              if (result === "ok") router.back();
+              else if (result === "error")
+                Alert.alert("Error", "No se pudo eliminar la comida.");
+              // "duplicate": skip silently — another mutation is in flight.
             },
           },
         ]);
