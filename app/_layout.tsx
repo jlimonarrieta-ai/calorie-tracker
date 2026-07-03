@@ -108,6 +108,15 @@ function RootNavigator() {
           headerLeft: () => <CancelButton />,
         }}
       />
+      <Stack.Screen
+        name="log-weight"
+        options={{
+          presentation: "modal",
+          headerShown: true,
+          title: "Registrar peso",
+          headerLeft: () => <CancelButton />,
+        }}
+      />
     </Stack>
   );
 }

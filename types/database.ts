@@ -50,3 +50,14 @@ export type Share = {
   viewer_id: string;
   created_at: string;
 };
+
+export type BodyMetric = {
+  id: string;
+  user_id: string;
+  weight_kg: number;
+  // Date-only "YYYY-MM-DD" — one weigh-in per user per calendar day
+  // (unique (user_id, measured_on) in the DB; re-logging a day upserts).
+  measured_on: string;
+  note: string | null;
+  created_at: string;
+};

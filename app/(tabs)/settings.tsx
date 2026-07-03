@@ -29,6 +29,15 @@ export default function Settings() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          className="border border-gray-300 rounded-lg py-3 items-center mb-3"
+          onPress={() => router.push("/log-weight")}
+          accessibilityRole="button"
+          accessibilityLabel="Registrar peso corporal"
+        >
+          <Text className="font-semibold">Registrar peso</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           className="border border-red-500 rounded-lg py-3 items-center"
           onPress={handleSignOut}
           accessibilityRole="button"
