@@ -1,5 +1,5 @@
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +18,7 @@ import { useAuth } from "../lib/auth";
 import { useFoodSearch } from "../lib/hooks/useFoodSearch";
 import { useAddFoodEntry } from "../lib/hooks/useAddFoodEntry";
 import { FoodItem, computeMacros } from "../lib/openFoodFacts";
+import { usePendingScan } from "../lib/scan";
 import { MealType } from "../types/database";
 import { MEAL_ORDER, mealFromDate } from "../lib/calculations/meals";
 
@@ -70,12 +71,32 @@ export default function AddFood() {
   const { addFromOpenFoodFacts, addManual, submitting } = useAddFoodEntry();
 
   const userId = session?.user.id;
+  const { consume } = usePendingScan();
 
   function handleSelect(item: FoodItem) {
     setSelected(item);
     // Default to the product's known serving size when available; otherwise 100g.
     setGrams(String(item.servingSizeGrams ?? 100));
   }
+
+  // Collect what the barcode scanner parked for us when this screen regains
+  // focus (the scanner modal sits on top of this one and hands off through
+  // the PendingScan context on close). Only stable setState setters are
+  // captured, so the focus callback can't go stale.
+  useFocusEffect(
+    useCallback(() => {
+      const scan = consume();
+      if (!scan) return;
+      if (scan.kind === "item") {
+        setMode("search");
+        setSelected(scan.item);
+        setGrams(String(scan.item.servingSizeGrams ?? 100));
+      } else {
+        if (scan.name) setManualName(scan.name);
+        setMode("manual");
+      }
+    }, [consume])
+  );
 
   async function handleSaveOff() {
     if (!userId || !selected || submitting) return;
@@ -205,15 +226,25 @@ export default function AddFood() {
       {mode === "search" ? (
         <>
           <View className="px-6 pt-3">
-            <TextInput
-              className="border border-gray-300 rounded-lg px-4 py-3 mb-2 text-base"
-              placeholder="Buscar (ej. avena, plátano, yogurt)"
-              value={query}
-              onChangeText={setQuery}
-              autoFocus
-              autoCapitalize="none"
-              accessibilityLabel="Buscar alimento"
-            />
+            <View className="flex-row items-center mb-2">
+              <TextInput
+                className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-base"
+                placeholder="Buscar (ej. avena, plátano, yogurt)"
+                value={query}
+                onChangeText={setQuery}
+                autoFocus
+                autoCapitalize="none"
+                accessibilityLabel="Buscar alimento"
+              />
+              <TouchableOpacity
+                className="ml-2 border border-gray-300 rounded-lg px-3 py-3"
+                onPress={() => router.push("/scan-barcode")}
+                accessibilityRole="button"
+                accessibilityLabel="Escanear código de barras"
+              >
+                <Text className="text-lg">📷</Text>
+              </TouchableOpacity>
+            </View>
             {loading && <ActivityIndicator className="my-2" />}
             {error && <Text className="text-red-500 text-sm">{error}</Text>}
           </View>

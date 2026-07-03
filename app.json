@@ -31,7 +31,13 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "CalTrack usa la cámara para escanear códigos de barras de alimentos."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

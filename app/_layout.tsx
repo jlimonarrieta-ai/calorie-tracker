@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "../lib/auth";
 import { ProfileProvider, useProfile } from "../lib/profile";
+import { PendingScanProvider } from "../lib/scan";
 import "../global.css";
 
 // Centralized cancel control for modal screens (add-food, edit-goals, edit-food/[id]).
@@ -108,6 +109,15 @@ function RootNavigator() {
           headerLeft: () => <CancelButton />,
         }}
       />
+      <Stack.Screen
+        name="scan-barcode"
+        options={{
+          presentation: "modal",
+          headerShown: true,
+          title: "Escanear código",
+          headerLeft: () => <CancelButton />,
+        }}
+      />
     </Stack>
   );
 }
@@ -117,8 +127,10 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <AuthProvider>
         <ProfileProvider>
-          <RootNavigator />
-          <StatusBar style="auto" />
+          <PendingScanProvider>
+            <RootNavigator />
+            <StatusBar style="auto" />
+          </PendingScanProvider>
         </ProfileProvider>
       </AuthProvider>
     </SafeAreaProvider>

@@ -89,6 +89,48 @@ function normalize(p: OFFProduct): FoodItem | null {
   };
 }
 
+// Barcode lookup discriminates three outcomes the scanner UI treats
+// differently: a usable product, a product that exists but lacks the
+// nutrition data we need (offer manual entry with the name pre-filled),
+// and a code OFF simply doesn't know.
+export type BarcodeLookup =
+  | { status: "found"; item: FoodItem }
+  | { status: "no-nutrition"; name: string | null }
+  | { status: "not-found" };
+
+// v2 product-by-barcode envelope: { code, status: 1|0, status_verbose,
+// product? } — status 0 / missing `product` means unknown or invalid code.
+// (Verified against the live API: both invalid and unknown codes answer
+// HTTP 200 with status 0, so `product` presence is the discriminator.)
+export function parseBarcodeResponse(data: unknown): BarcodeLookup {
+  const envelope = data as { product?: OFFProduct } | null | undefined;
+  const product = envelope?.product;
+  if (!product || typeof product !== "object") return { status: "not-found" };
+  const item = normalize(product);
+  if (item) return { status: "found", item };
+  return { status: "no-nutrition", name: pickName(product) };
+}
+
+export async function getByBarcode(code: string, signal?: AbortSignal): Promise<BarcodeLookup> {
+  const trimmed = code.trim();
+  // EAN-8 through EAN-13/UPC lengths; anything else can't be a food barcode
+  // we scan, so skip the network round-trip.
+  if (!/^\d{6,14}$/.test(trimmed)) return { status: "not-found" };
+
+  const url =
+    `${BASE}/api/v2/product/${trimmed}.json?` +
+    new URLSearchParams({
+      fields:
+        "code,product_name,product_name_es,product_name_en,brands,image_small_url,image_thumb_url,serving_quantity,nutriments",
+    }).toString();
+
+  const res = await fetch(url, { signal });
+  // Some deployments answer 404 for unknown codes instead of status 0.
+  if (res.status === 404) return { status: "not-found" };
+  if (!res.ok) throw new Error(`OFF product failed: ${res.status}`);
+  return parseBarcodeResponse(await res.json());
+}
+
 export async function searchFoods(query: string, signal?: AbortSignal): Promise<FoodItem[]> {
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
