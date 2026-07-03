@@ -17,9 +17,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../lib/auth";
 import { useFoodSearch } from "../lib/hooks/useFoodSearch";
 import { useAddFoodEntry } from "../lib/hooks/useAddFoodEntry";
+import { useRecentFoods } from "../lib/hooks/useRecentFoods";
+import { favoriteFromEntry, useFavorites } from "../lib/hooks/useFavorites";
 import { FoodItem, computeMacros } from "../lib/openFoodFacts";
-import { MealType } from "../types/database";
+import { Favorite, FoodEntry, MealType } from "../types/database";
 import { MEAL_ORDER, mealFromDate } from "../lib/calculations/meals";
+import { quickPickToFoodItem } from "../lib/calculations/recents";
 
 const MEAL_LABELS: Record<MealType, string> = {
   breakfast: "Desayuno",
@@ -70,11 +73,81 @@ export default function AddFood() {
   const { addFromOpenFoodFacts, addManual, submitting } = useAddFoodEntry();
 
   const userId = session?.user.id;
+  const { recents, loading: recentsLoading } = useRecentFoods(userId);
+  const {
+    favorites,
+    loading: favoritesLoading,
+    addFavorite,
+    removeFavorite,
+  } = useFavorites(userId);
+  // An explicit meal deep-link (＋ on a Today section) always wins over a
+  // favorite's meal_default; without one the favorite decides, then the hour.
+  const hasExplicitMeal = isMealType(params.meal);
 
   function handleSelect(item: FoodItem) {
     setSelected(item);
     // Default to the product's known serving size when available; otherwise 100g.
     setGrams(String(item.servingSizeGrams ?? 100));
+  }
+
+  function quickMealFor(mealDefault: MealType | null): MealType {
+    return !hasExplicitMeal && mealDefault ? mealDefault : mealType;
+  }
+
+  // Quick log: OFF rows with a serving base jump to the quantity step;
+  // everything else (manual rows, legacy OFF without base) inserts directly
+  // with its stored absolute macros — via addManual, so the new entry is an
+  // editable manual row instead of a re-created legacy OFF one.
+  async function handleQuickPick(row: FoodEntry | Favorite, mealDefault: MealType | null) {
+    const meal = quickMealFor(mealDefault);
+    const item = quickPickToFoodItem(row);
+    if (item) {
+      setMealType(meal);
+      handleSelect(item);
+      return;
+    }
+    if (!userId || submitting) return;
+    const result = await addManual(userId, {
+      name: row.name,
+      calories: Number(row.calories),
+      proteinG: row.protein_g,
+      carbsG: row.carbs_g,
+      fatG: row.fat_g,
+      mealType: meal,
+    });
+    if (result === "ok") router.back();
+    else if (result === "error") Alert.alert("Error", "No se pudo guardar la comida.");
+    // "duplicate": ignore — the first save is still in flight or just succeeded.
+  }
+
+  function handleRemoveFavorite(fav: Favorite) {
+    Alert.alert("Quitar favorito", `¿Quitar "${fav.name}" de tus favoritos?`, [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Quitar",
+        style: "destructive",
+        onPress: async () => {
+          const result = await removeFavorite(fav.id);
+          if (result === "error") Alert.alert("Error", "No se pudo quitar el favorito.");
+          // "duplicate": another mutation is in flight — tap deduped, not failed.
+        },
+      },
+    ]);
+  }
+
+  function handleFavoriteRecent(entry: FoodEntry) {
+    const fav = favoriteFromEntry(entry);
+    if (!fav) return;
+    Alert.alert("Favoritos", `¿Guardar "${entry.name}" como favorito?`, [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Guardar",
+        onPress: async () => {
+          const result = await addFavorite(fav);
+          if (result === "error") Alert.alert("Error", "No se pudo guardar el favorito.");
+        },
+      },
+    ]);
   }
 
   async function handleSaveOff() {
@@ -223,6 +296,20 @@ export default function AddFood() {
             keyExtractor={(item) => item.externalId}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }}
+            ListHeaderComponent={
+              query.trim().length < 2 ? (
+                <QuickLogSection
+                  favorites={favorites}
+                  favoritesLoading={favoritesLoading}
+                  recents={recents}
+                  recentsLoading={recentsLoading}
+                  onPickFavorite={(f) => handleQuickPick(f, f.meal_default)}
+                  onPickRecent={(e) => handleQuickPick(e, null)}
+                  onRemoveFavorite={handleRemoveFavorite}
+                  onFavoriteRecent={handleFavoriteRecent}
+                />
+              ) : null
+            }
             ListEmptyComponent={
               !loading && query.trim().length >= 2 ? (
                 <View className="mt-6 items-center">
@@ -428,5 +515,132 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
       <Text className={`text-gray-700 ${bold ? "font-semibold" : ""}`}>{label}</Text>
       <Text className={`${bold ? "font-semibold" : "text-gray-700"}`}>{value}</Text>
     </View>
+  );
+}
+
+function quickSubtitle(calories: number, servingGrams: number | null): string {
+  const kcal = `${Math.round(Number(calories))} kcal`;
+  return servingGrams ? `${kcal} · ${servingGrams} g` : kcal;
+}
+
+// "Rápido": favorites + recents shown while the search box is idle
+// (query < 2 chars), so frequent foods are one tap away without re-searching.
+function QuickLogSection({
+  favorites,
+  favoritesLoading,
+  recents,
+  recentsLoading,
+  onPickFavorite,
+  onPickRecent,
+  onRemoveFavorite,
+  onFavoriteRecent,
+}: {
+  favorites: Favorite[];
+  favoritesLoading: boolean;
+  recents: FoodEntry[];
+  recentsLoading: boolean;
+  onPickFavorite: (f: Favorite) => void;
+  onPickRecent: (e: FoodEntry) => void;
+  onRemoveFavorite: (f: Favorite) => void;
+  onFavoriteRecent: (e: FoodEntry) => void;
+}) {
+  return (
+    <View className="pt-1 pb-3">
+      <Text className="text-sm font-semibold text-gray-700 mb-1">Favoritos</Text>
+      {favoritesLoading ? (
+        <ActivityIndicator className="my-3" />
+      ) : favorites.length === 0 ? (
+        <Text className="text-gray-400 text-sm py-2">
+          Aún no tienes favoritos. Guárdalos con ☆ al editar una comida o
+          manteniendo presionada una reciente.
+        </Text>
+      ) : (
+        favorites.map((f) => (
+          <QuickRow
+            key={f.id}
+            title={f.name}
+            subtitle={quickSubtitle(f.calories, f.serving_grams)}
+            starred
+            onPress={() => onPickFavorite(f)}
+            onLongPress={() => onRemoveFavorite(f)}
+            hint="Toca para agregar, mantén presionado para quitar de favoritos"
+            longPressLabel="Quitar de favoritos"
+          />
+        ))
+      )}
+
+      <Text className="text-sm font-semibold text-gray-700 mb-1 mt-4">Recientes</Text>
+      {recentsLoading ? (
+        <ActivityIndicator className="my-3" />
+      ) : recents.length === 0 ? (
+        <Text className="text-gray-400 text-sm py-2">
+          Tus comidas recientes aparecerán aquí.
+        </Text>
+      ) : (
+        recents.map((e) => (
+          <QuickRow
+            key={e.id}
+            title={e.name}
+            subtitle={quickSubtitle(e.calories, e.serving_grams)}
+            starred={false}
+            onPress={() => onPickRecent(e)}
+            onLongPress={() => onFavoriteRecent(e)}
+            hint="Toca para agregar, mantén presionado para guardar como favorito"
+            longPressLabel="Guardar como favorito"
+          />
+        ))
+      )}
+    </View>
+  );
+}
+
+function QuickRow({
+  title,
+  subtitle,
+  starred,
+  onPress,
+  onLongPress,
+  hint,
+  longPressLabel,
+}: {
+  title: string;
+  subtitle: string;
+  starred: boolean;
+  onPress: () => void;
+  onLongPress: () => void;
+  hint: string;
+  longPressLabel: string;
+}) {
+  return (
+    <TouchableOpacity
+      className="flex-row justify-between items-center py-3 border-b border-gray-100"
+      onPress={onPress}
+      onLongPress={onLongPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${starred ? "Favorito: " : ""}${title}, ${subtitle}`}
+      accessibilityHint={hint}
+      accessibilityActions={[
+        { name: "activate", label: "Agregar" },
+        { name: "longpress", label: longPressLabel },
+      ]}
+      onAccessibilityAction={(e) => {
+        if (e.nativeEvent.actionName === "activate") {
+          onPress();
+        } else if (e.nativeEvent.actionName === "longpress") {
+          onLongPress();
+        }
+      }}
+    >
+      <View className="flex-1 pr-3 flex-row items-center">
+        {starred && <Text className="text-amber-500 mr-2">★</Text>}
+        <View className="flex-1">
+          <Text className="font-medium" numberOfLines={1}>
+            {title}
+          </Text>
+          <Text className="text-gray-500 text-xs mt-0.5">{subtitle}</Text>
+        </View>
+      </View>
+      <Text className="text-gray-400 text-lg leading-none">＋</Text>
+    </TouchableOpacity>
   );
 }

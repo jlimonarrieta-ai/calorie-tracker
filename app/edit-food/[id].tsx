@@ -15,9 +15,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../lib/auth";
 import { useEntryById } from "../../lib/hooks/useEntryById";
 import { useAddFoodEntry, EntryUpdates } from "../../lib/hooks/useAddFoodEntry";
+import { favoriteFromEntry, useFavorites } from "../../lib/hooks/useFavorites";
 import { scaleMacros } from "../../lib/calculations/scaling";
 import { MEAL_ORDER } from "../../lib/calculations/meals";
 import { MealType, FoodEntry } from "../../types/database";
+
+// Lifecycle of the "☆ Guardar como favorito" action: hidden for sources the
+// favorites table doesn't admit, saved once the entry matches an existing
+// favorite (by name + source + external_id).
+type FavoriteButtonStatus = "hidden" | "idle" | "saving" | "saved";
 
 const MEAL_LABELS: Record<MealType, string> = {
   breakfast: "Desayuno",
@@ -42,6 +48,11 @@ export default function EditFood() {
 
   const { entry, loading, error } = useEntryById(userId, entryId);
   const { updateEntry, deleteEntry, submitting } = useAddFoodEntry();
+  const {
+    favorites,
+    submitting: favoriteSubmitting,
+    addFavorite,
+  } = useFavorites(userId);
 
   if (loading) {
     return (
@@ -69,10 +80,34 @@ export default function EditFood() {
     );
   }
 
+  const isFavorited = favorites.some(
+    (f) =>
+      f.name === entry.name &&
+      f.source === entry.source &&
+      (f.external_id ?? null) === (entry.external_id ?? null)
+  );
+  const favoriteStatus: FavoriteButtonStatus =
+    favoriteFromEntry(entry) === null
+      ? "hidden"
+      : isFavorited
+        ? "saved"
+        : favoriteSubmitting
+          ? "saving"
+          : "idle";
+
   return (
     <EditFoodForm
       entry={entry}
       submitting={submitting}
+      favoriteStatus={favoriteStatus}
+      onFavorite={async () => {
+        const fav = favoriteFromEntry(entry);
+        if (!fav) return;
+        const result = await addFavorite(fav);
+        if (result === "error") Alert.alert("Error", "No se pudo guardar el favorito.");
+        // "ok": the hook prepends the row to its list, flipping the button
+        // to "saved". "duplicate": tap deduped while another save runs.
+      }}
       onSave={async (updates) => {
         if (!userId) return;
         const result = await updateEntry(entry.id, userId, entry, updates);
@@ -104,11 +139,15 @@ export default function EditFood() {
 function EditFoodForm({
   entry,
   submitting,
+  favoriteStatus,
+  onFavorite,
   onSave,
   onDelete,
 }: {
   entry: FoodEntry;
   submitting: boolean;
+  favoriteStatus: FavoriteButtonStatus;
+  onFavorite: () => void;
   onSave: (updates: EntryUpdates) => Promise<void>;
   onDelete: () => void;
 }) {
@@ -320,6 +359,34 @@ function EditFoodForm({
               {submitting ? "Guardando..." : "Guardar cambios"}
             </Text>
           </TouchableOpacity>
+
+          {favoriteStatus !== "hidden" && (
+            <TouchableOpacity
+              className="mt-4 items-center"
+              onPress={onFavorite}
+              disabled={favoriteStatus !== "idle" || submitting}
+              accessibilityRole="button"
+              accessibilityLabel="Guardar como favorito"
+              accessibilityState={{
+                disabled: favoriteStatus !== "idle" || submitting,
+                busy: favoriteStatus === "saving",
+              }}
+            >
+              <Text
+                className={
+                  favoriteStatus === "saved"
+                    ? "text-amber-500 font-medium"
+                    : "text-gray-700 font-medium"
+                }
+              >
+                {favoriteStatus === "saved"
+                  ? "★ En favoritos"
+                  : favoriteStatus === "saving"
+                    ? "Guardando favorito..."
+                    : "☆ Guardar como favorito"}
+              </Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             className="mt-4 items-center"

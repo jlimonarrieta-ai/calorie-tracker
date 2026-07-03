@@ -50,3 +50,22 @@ export type Share = {
   viewer_id: string;
   created_at: string;
 };
+
+// Sources a favorite can snapshot. Narrower than FoodEntry["source"]:
+// usda/photo entries (future) can't be favorited until the table admits them.
+export type FavoriteSource = "manual" | "openfoodfacts";
+
+export type Favorite = {
+  id: string;
+  user_id: string;
+  name: string;
+  calories: number;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  serving_grams: number | null;
+  source: FavoriteSource;
+  external_id: string | null;
+  meal_default: MealType | null;
+  created_at: string;
+};
